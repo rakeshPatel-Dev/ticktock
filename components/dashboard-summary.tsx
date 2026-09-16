@@ -44,7 +44,7 @@ export function DashboardSummaryView({
   return (
     <div className="space-y-8 w-full">
       {/* Daily Progress Widget */}
-      <Card className="border-border/60 shadow-xs bg-card/50 rounded-4xl">
+      <Card className="border-border/40 [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -71,11 +71,11 @@ export function DashboardSummaryView({
 
       {/* Today's Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-border/50 bg-card/40 rounded-4xl shadow-xs">
+        <Card className="border-border/40">
           <CardContent className="p-4 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Focused</span>
-              <div className="h-7 w-7 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center ring-1 ring-sky-500/20 shadow-sm shadow-sky-500/20">
                 <Clock className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -85,11 +85,11 @@ export function DashboardSummaryView({
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/40 rounded-4xl shadow-xs">
+        <Card className="border-border/40">
           <CardContent className="p-4 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Sessions</span>
-              <div className="h-7 w-7 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/20">
                 <CheckCircle className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -99,11 +99,11 @@ export function DashboardSummaryView({
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/40 rounded-4xl shadow-xs">
+        <Card className="border-border/40">
           <CardContent className="p-4 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Subjects</span>
-              <div className="h-7 w-7 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center ring-1 ring-orange-500/20 shadow-sm shadow-orange-500/20">
                 <BookOpen className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -113,11 +113,11 @@ export function DashboardSummaryView({
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 bg-card/40 rounded-4xl shadow-xs">
+        <Card className="border-border/40">
           <CardContent className="p-4 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground font-medium">Longest</span>
-              <div className="h-7 w-7 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center ring-1 ring-rose-500/20 shadow-sm shadow-rose-500/20">
                 <Flame className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -154,7 +154,7 @@ export function DashboardSummaryView({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border/40 rounded-4xl border border-border/60 bg-card/50 overflow-hidden shadow-xs">
+          <div className="divide-y divide-border/40 rounded-4xl border border-border/50 bg-card overflow-hidden [box-shadow:var(--shadow-card)]">
             {summary.recentSessions.map((session) => {
               const theme = getSubjectColor(session.subject);
               return (
@@ -162,7 +162,7 @@ export function DashboardSummaryView({
                   key={session.id}
                   type="button"
                   onClick={() => setSelectedSession(session)}
-                  className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-colors group"
+                  className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
                 >
                   <div className="space-y-1 min-w-0 pr-2">
                     <div className="flex items-center gap-2">

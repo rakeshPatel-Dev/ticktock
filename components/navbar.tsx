@@ -32,14 +32,14 @@ export function Navbar() {
 
   return (
     <header className="sticky top-3 z-40 w-full px-4 mb-2">
-      <div className="container mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 rounded-full border border-border/80 bg-background/80 backdrop-blur-xl shadow-md">
+      <div className="container mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 rounded-full border border-border/60 bg-background/85 backdrop-blur-xl [box-shadow:0_4px_16px_oklch(0_0_0_/_0.08),0_1px_4px_oklch(0_0_0_/_0.06),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
         {/* Brand */}
         <div className="flex items-center gap-4 sm:gap-6">
           <Link
             href="/"
             className="flex items-center gap-2 font-bold tracking-tight text-foreground group transition-transform active:scale-95"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-sm shadow-sky-500/25 group-hover:rotate-12 transition-transform">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-md shadow-sky-500/40 group-hover:rotate-12 transition-transform">
               <Timer className="h-4 w-4" />
             </div>
             <span className="text-base font-extrabold tracking-tight text-foreground">

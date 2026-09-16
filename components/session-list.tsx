@@ -165,7 +165,7 @@ export function SessionListView({
                 {groupLabel}
               </h4>
 
-              <div className="divide-y divide-border/40 rounded-4xl border border-border/60 bg-card/50 overflow-hidden shadow-2xs">
+              <div className="divide-y divide-border/40 rounded-4xl border border-border/50 bg-card overflow-hidden [box-shadow:var(--shadow-card)]">
                 {groupedSessions[groupLabel].map((session) => {
                   const theme = getSubjectColor(session.subject);
                   return (
@@ -173,7 +173,7 @@ export function SessionListView({
                       key={session.id}
                       type="button"
                       onClick={() => setActiveDetailSession(session)}
-                      className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-colors group"
+                      className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
                     >
                       <div className="space-y-1.5 min-w-0 pr-3">
                         <div className="flex items-center gap-2">

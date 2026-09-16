@@ -11,7 +11,9 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-4xl bg-card py-(--card-spacing) text-sm text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-4xl *:[img:last-child]:rounded-b-4xl transition-all shadow-xs",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-4xl bg-card py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-4xl *:[img:last-child]:rounded-b-4xl transition-all duration-200",
+        // Layered shadow system: ambient + directional + inset top-highlight
+        "[box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.55)] hover:[box-shadow:var(--shadow-card-hover),inset_0_1px_0_oklch(1_0_0_/_0.55)]",
         className
       )}
       {...props}
