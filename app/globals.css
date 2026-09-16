@@ -158,6 +158,8 @@
   }
   body {
     @apply bg-background text-foreground text-base leading-relaxed;
+    /* Prevent any horizontal page scroll from oversized content */
+    overflow-x: clip;
     /* Subtle dot-grid texture for depth without gradients */
     background-image: radial-gradient(
       circle,
@@ -176,6 +178,7 @@
   }
   html {
     @apply font-sans;
+    overflow-x: clip;
   }
 }
 
