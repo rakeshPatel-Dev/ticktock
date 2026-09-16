@@ -157,7 +157,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-base leading-relaxed;
     /* Subtle dot-grid texture for depth without gradients */
     background-image: radial-gradient(
       circle,
@@ -176,5 +176,40 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ── Typography scale utilities ────────────────────────────────
+   These classes encode the app's type hierarchy. Use them
+   instead of raw text-* classes for consistent scale.
+
+   Scale (perfect-fourth 1.333 ratio, rounded to Tailwind steps):
+     micro   11px  .type-micro   — timestamps, secondary chips
+     label   12px  .type-label   — uppercase section labels
+     caption 13px  (text-sm)     — helper text, descriptions
+     body    16px  (text-base)   — default body copy
+     subhead 18px  .type-subhead — row content, card descriptions
+     heading 20px  .type-heading — card headings, group labels
+     section 24px  .type-section — in-page section headings
+     metric  36px  .type-metric  — stat/card numerical values
+──────────────────────────────────────────────────────────────── */
+@layer components {
+  .type-micro {
+    @apply text-[11px] font-medium leading-none;
+  }
+  .type-label {
+    @apply text-xs font-semibold uppercase tracking-widest text-muted-foreground;
+  }
+  .type-subhead {
+    @apply text-lg font-medium leading-snug;
+  }
+  .type-heading {
+    @apply text-xl font-semibold tracking-tight leading-snug;
+  }
+  .type-section {
+    @apply text-2xl font-bold tracking-tight;
+  }
+  .type-metric {
+    @apply text-4xl font-black tracking-tight leading-none;
   }
 }
