@@ -13,6 +13,7 @@ import {
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SHORTCUTS } from "@/lib/shortcuts";
 import {
   Dialog,
   DialogContent,
@@ -85,7 +86,7 @@ export function Navbar() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                  className="hidden sm:inline-flex rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
                   title="Keyboard shortcuts (?)"
                 >
                   <HelpCircle className="h-4 w-4" />
@@ -103,40 +104,14 @@ export function Navbar() {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-3 text-sm pt-2">
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground font-medium">Start session</span>
-                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
-                    S
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground font-medium">
-                    Pause / Resume timer
-                  </span>
-                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
-                    Space
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground font-medium">
-                    Full page focus mode
-                  </span>
-                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
-                    M
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground font-medium">Finish session</span>
-                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
-                    F
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground font-medium">Exit / Close modal</span>
-                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
-                    Esc
-                  </kbd>
-                </div>
+                {SHORTCUTS.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+                    <span className="text-muted-foreground font-medium">{s.action}</span>
+                    <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
+                      {s.label}
+                    </kbd>
+                  </div>
+                ))}
               </div>
             </DialogContent>
           </Dialog>

@@ -8,9 +8,21 @@ import { Button } from "@/components/ui/button";
 import { pauseSession, resumeSession } from "@/lib/actions";
 import { formatTimerDisplay } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
+import {
+  getShortcut,
+  matchesShortcut,
+  shortcutHintClass,
+  shortcutKbdClass,
+} from "@/lib/shortcuts";
 import { StartSessionModal } from "./start-session";
 import { FinishSessionModal } from "./session-form";
 import { cn } from "@/lib/utils";
+
+const startShortcut = getShortcut("start");
+const pauseResumeShortcut = getShortcut("pauseResume");
+const finishShortcut = getShortcut("finish");
+const toggleFullScreenShortcut = getShortcut("toggleFullScreen");
+const exitFullScreenShortcut = getShortcut("exitFullScreen");
 
 interface TimerProps {
   initialSession: StudySession | null;
@@ -131,7 +143,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         return;
       }
 
-      if (e.code === "Space" && session) {
+      if (matchesShortcut(pauseResumeShortcut, e) && session) {
         e.preventDefault();
         if (session.status === "active") {
           void handlePause();
@@ -140,17 +152,17 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         }
       }
 
-      if (e.key.toLowerCase() === "s" && !session && !isStarting) {
+      if (matchesShortcut(startShortcut, e) && !session && !isStarting) {
         e.preventDefault();
         setIsStarting(true);
       }
 
-      if (e.key.toLowerCase() === "f" && session && !isFinishing) {
+      if (matchesShortcut(finishShortcut, e) && session && !isFinishing) {
         e.preventDefault();
         setIsFinishing(true);
       }
 
-      if (e.key.toLowerCase() === "m" && session) {
+      if (matchesShortcut(toggleFullScreenShortcut, e) && session) {
         e.preventDefault();
         toggleFullScreen();
       }
@@ -203,10 +215,10 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               />
             </div>
 
-            <p className="text-xs sm:text-sm text-muted-foreground font-semibold">
+            <p className={`${shortcutHintClass("start")} text-sm text-muted-foreground font-semibold`}>
               Press{" "}
               <kbd className="font-mono bg-muted/80 px-2.5 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-                S
+                {startShortcut.label}
               </kbd>{" "}
               to start instantly
             </p>
@@ -235,8 +247,8 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             >
               <Maximize2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Full Screen</span>
-              <kbd className="hidden sm:inline font-mono bg-muted px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold">
-                M
+              <kbd className={`${shortcutKbdClass("toggleFullScreen")} font-mono bg-muted px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold`}>
+                {toggleFullScreenShortcut.label}
               </kbd>
             </Button>
           </div>
@@ -338,13 +350,13 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             </div>
 
             {/* Shortcut hint */}
-            <p className="text-xs sm:text-sm text-muted-foreground/80 font-medium">
+            <p className={`${shortcutHintClass("pauseResume", "finish", "toggleFullScreen")} text-sm text-muted-foreground/80 font-medium`}>
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-                Space
+                {pauseResumeShortcut.label}
               </kbd>{" "}
               to {session.status === "active" ? "pause" : "resume"} ·{" "}
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-                F
+                {finishShortcut.label}
               </kbd>{" "}
               to finish ·{" "}
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
@@ -404,8 +416,8 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             >
               <Minimize2 className="h-3.5 w-3.5" />
               Exit
-              <kbd className="font-mono bg-muted/80 px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold">
-                Esc
+              <kbd className={`${shortcutKbdClass("exitFullScreen")} font-mono bg-muted/80 px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold`}>
+                {exitFullScreenShortcut.label}
               </kbd>
             </Button>
           </div>
@@ -484,22 +496,22 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
           </div>
 
           {/* Bottom Shortcut bar */}
-          <div className="text-center text-xs text-muted-foreground/70 font-medium max-w-6xl mx-auto">
+          <div className={`${shortcutHintClass("pauseResume", "finish", "exitFullScreen", "toggleFullScreen")} text-center text-sm text-muted-foreground/70 font-medium max-w-6xl mx-auto`}>
             Press{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-              Space
+              {pauseResumeShortcut.label}
             </kbd>{" "}
             to {session.status === "active" ? "pause" : "resume"} ·{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-              F
+              {finishShortcut.label}
             </kbd>{" "}
             to finish ·{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-              Esc
+              {exitFullScreenShortcut.label}
             </kbd>{" "}
             or{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-              M
+              {toggleFullScreenShortcut.label}
             </kbd>{" "}
             to exit
           </div>
