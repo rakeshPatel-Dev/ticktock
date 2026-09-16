@@ -109,7 +109,7 @@ export function FinishSessionModal({
                     (optional)
                   </span>
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 mt-1 sm:grid-cols-3 gap-2">
                   {OUTCOME_OPTIONS.map((opt) => {
                     const isSelected = outcome === opt.label;
                     return (
@@ -146,7 +146,7 @@ export function FinishSessionModal({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   disabled={isSubmitting}
-                  className="rounded-3xl text-sm"
+                  className="rounded-3xl mt-1 text-sm"
                 />
               </div>
 

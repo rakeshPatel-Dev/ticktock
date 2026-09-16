@@ -75,7 +75,7 @@ export function SettingsView() {
               <label className="text-base font-semibold text-foreground">
                 Daily Focus Goal
               </label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm  mt-1 text-muted-foreground">
                 Target hours of focused study per day.
               </p>
             </div>
@@ -87,7 +87,7 @@ export function SettingsView() {
                 step="0.5"
                 value={dailyGoal}
                 onChange={(e) => setDailyGoal(e.target.value)}
-                className="w-24 font-mono text-center rounded-full text-base h-11"
+                className="w-24 font-mono text-center rounded-full text-base h-11 mt-1"
               />
               <span className="text-sm font-semibold text-muted-foreground">hours</span>
               <Button
@@ -114,7 +114,7 @@ export function SettingsView() {
               <label className="text-base font-semibold text-foreground">
                 Appearance
               </label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm  mt-1 text-muted-foreground">
                 Choose light, dark, or follow system theme.
               </p>
             </div>

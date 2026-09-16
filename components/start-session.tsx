@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Play, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -98,8 +99,8 @@ export function StartSessionModal({
       <DialogContent className="sm:max-w-md rounded-4xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
-            <div className="p-1.5 rounded-full bg-sky-500 text-white shadow-sm">
-              <Sparkles className="h-4 w-4" />
+            <div className="p-0.5 rounded-full overflow-hidden shadow-sm">
+              <Image src="/images/session_buddy.svg" alt="Start session" width={30} height={30} />
             </div>
             Start a Session
           </DialogTitle>
@@ -123,7 +124,7 @@ export function StartSessionModal({
               onChange={(e) => setSubject(e.target.value)}
               disabled={isSubmitting}
               autoComplete="off"
-              className="h-11 rounded-full px-4 text-sm"
+              className="h-11 rounded-full mt-1 px-4 text-sm"
             />
 
             {/* Playful colorful subject suggestion pills */}
@@ -161,7 +162,7 @@ export function StartSessionModal({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               disabled={isSubmitting}
-              className="h-11 rounded-full px-4 text-sm"
+              className="h-11 rounded-full mt-1 px-4 text-sm"
             />
           </div>
 
@@ -174,7 +175,7 @@ export function StartSessionModal({
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               disabled={isSubmitting}
-              className="h-11 rounded-full px-4 text-sm"
+              className="h-11 rounded-full mt-1 px-4 text-sm"
             />
           </div>
 

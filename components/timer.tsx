@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Play, Pause, Square, Sparkles, Maximize2, Minimize2 } from "lucide-react";
+import Image from "next/image";
+import { Play, Pause, Square, Maximize2, Minimize2 } from "lucide-react";
 import { type StudySession } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { pauseSession, resumeSession } from "@/lib/actions";
@@ -175,8 +176,8 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
       {!session && (
         <div className="rounded-4xl border border-border/50 bg-card p-8 sm:p-14 text-center [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
           <div className="relative space-y-6 max-w-xl mx-auto">
-            <div className="inline-flex items-center justify-center p-3.5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 mb-1 ring-1 ring-sky-500/25 shadow-sm shadow-sky-500/20">
-              <Sparkles className="h-6 w-6" />
+            <div className="inline-flex items-center justify-center p-1 rounded-full overflow-hidden mb-1 ">
+              <Image src="/images/session_buddy.svg" alt="Start session" width={150} height={150} />
             </div>
 
             <div className="space-y-3">
@@ -184,7 +185,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 Ready to focus?
               </h2>
               <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-md mx-auto">
-                Track your focused time honestly and simply. Zero clutter, pure momentum.
+                Track your focused time honestly and simply.
               </p>
             </div>
 
