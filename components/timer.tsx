@@ -19,14 +19,18 @@ interface TimerProps {
 
 function computeCurrentElapsed(session: StudySession | null): number {
   if (!session) return 0;
-  const now = Math.floor(Date.now() / 1000);
   if (session.status === "active") {
-    const raw = Math.max(0, now - session.startedAt);
+    // Use float precision (no Math.floor) so the display advances the instant
+    // a full second is reached, not up to 1 second late.
+    const nowF = Date.now() / 1000;
+    const raw = Math.max(0, nowF - session.startedAt);
     return Math.max(0, raw - session.pausedSeconds);
   } else if (session.status === "paused") {
+    // Paused: use server-recorded updatedAt (integer seconds) — exact
     const raw = Math.max(0, session.updatedAt - session.startedAt);
     return Math.max(0, raw - session.pausedSeconds);
   }
+  // Finished: durationSeconds is the authoritative recorded value
   return session.durationSeconds;
 }
 
@@ -105,9 +109,11 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
       return;
     }
 
+    // 100ms interval: computeCurrentElapsed uses float-precision Date.now(),
+    // so the displayed second advances the instant it's reached (≤100ms lag).
     const interval = setInterval(() => {
       setElapsed(computeCurrentElapsed(session));
-    }, 1000);
+    }, 100);
 
     return () => clearInterval(interval);
   }, [session]);
