@@ -31,22 +31,24 @@ export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
-      <div className="container mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+    <header className="sticky top-3 z-40 w-full px-4 mb-2">
+      <div className="container mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-5 rounded-full border border-border/80 bg-background/80 backdrop-blur-xl shadow-md">
         {/* Brand */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 sm:gap-6">
           <Link
             href="/"
-            className="flex items-center gap-2 font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90"
+            className="flex items-center gap-2 font-bold tracking-tight text-foreground group transition-transform active:scale-95"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-background">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-sm shadow-sky-500/25 group-hover:rotate-12 transition-transform">
               <Timer className="h-4 w-4" />
             </div>
-            <span className="text-base font-bold tracking-tight">TickTock</span>
+            <span className="text-base font-extrabold tracking-tight text-foreground">
+              TickTock
+            </span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden sm:flex items-center gap-1">
+          <nav className="hidden sm:flex items-center gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -59,10 +61,10 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                    "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all active:scale-95",
                     isActive
-                      ? "bg-accent text-accent-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                      ? "bg-foreground text-background shadow-xs font-bold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -74,15 +76,15 @@ export function Navbar() {
         </div>
 
         {/* Right side: Shortcut help & Theme toggle */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {/* Shortcuts Dialog */}
           <Dialog>
             <DialogTrigger
               render={
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  size="icon-sm"
+                  className="rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
                   title="Keyboard shortcuts (?)"
                 >
                   <HelpCircle className="h-4 w-4" />
@@ -90,36 +92,39 @@ export function Navbar() {
                 </Button>
               }
             />
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md rounded-4xl">
               <DialogHeader>
-                <DialogTitle className="text-base font-semibold">
+                <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                  <div className="p-1 rounded-full bg-amber-500/10 text-amber-500">
+                    <HelpCircle className="h-4 w-4" />
+                  </div>
                   Keyboard Shortcuts
                 </DialogTitle>
               </DialogHeader>
-              <div className="space-y-2.5 text-sm pt-2">
-                <div className="flex items-center justify-between py-1 border-b border-border/50">
-                  <span className="text-muted-foreground">Start session</span>
-                  <kbd className="rounded bg-muted px-2 py-0.5 text-xs font-mono font-medium border border-border">
+              <div className="space-y-3 text-sm pt-2">
+                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground font-medium">Start session</span>
+                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
                     S
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-border/50">
-                  <span className="text-muted-foreground">
+                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground font-medium">
                     Pause / Resume timer
                   </span>
-                  <kbd className="rounded bg-muted px-2 py-0.5 text-xs font-mono font-medium border border-border">
+                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
                     Space
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-border/50">
-                  <span className="text-muted-foreground">Finish session</span>
-                  <kbd className="rounded bg-muted px-2 py-0.5 text-xs font-mono font-medium border border-border">
+                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground font-medium">Finish session</span>
+                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
                     F
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-border/50">
-                  <span className="text-muted-foreground">Close modal</span>
-                  <kbd className="rounded bg-muted px-2 py-0.5 text-xs font-mono font-medium border border-border">
+                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground font-medium">Close modal</span>
+                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
                     Esc
                   </kbd>
                 </div>
@@ -132,7 +137,7 @@ export function Navbar() {
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="sm:hidden flex border-t border-border/50 bg-background/95 backdrop-blur px-2 py-1 justify-around">
+      <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40 flex rounded-full border border-border/70 bg-background/90 backdrop-blur-xl px-3 py-1.5 justify-around shadow-xl">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -145,9 +150,9 @@ export function Navbar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 py-1 px-3 text-[10px] font-medium rounded-md transition-colors",
+                "flex flex-col items-center gap-0.5 py-1 px-3 text-[11px] font-semibold rounded-full transition-all active:scale-95",
                 isActive
-                  ? "text-foreground font-semibold"
+                  ? "bg-foreground text-background shadow-xs font-bold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,12 +15,12 @@ import { formatDuration } from "@/lib/timer";
 import { cn } from "@/lib/utils";
 
 const OUTCOME_OPTIONS = [
-  "Learned",
-  "Revised",
-  "Solved problems",
-  "Built something",
-  "Practiced",
-  "Nothing specific",
+  { label: "Learned", color: "hover:border-sky-500 hover:text-sky-500", active: "bg-sky-500 text-white border-sky-500 font-bold" },
+  { label: "Revised", color: "hover:border-amber-500 hover:text-amber-500", active: "bg-amber-500 text-white border-amber-500 font-bold" },
+  { label: "Solved problems", color: "hover:border-emerald-500 hover:text-emerald-500", active: "bg-emerald-500 text-white border-emerald-500 font-bold" },
+  { label: "Built something", color: "hover:border-orange-500 hover:text-orange-500", active: "bg-orange-500 text-white border-orange-500 font-bold" },
+  { label: "Practiced", color: "hover:border-rose-500 hover:text-rose-500", active: "bg-rose-500 text-white border-rose-500 font-bold" },
+  { label: "Nothing specific", color: "hover:border-foreground/40", active: "bg-foreground text-background border-foreground font-bold" },
 ];
 
 interface FinishSessionModalProps {
@@ -43,14 +43,6 @@ export function FinishSessionModal({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [celebrating, setCelebrating] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!open) {
-      setOutcome(null);
-      setNotes("");
-      setCelebrating(false);
-    }
-  }, [open]);
-
   const handleSave = async () => {
     setIsSubmitting(true);
     const res = await finishSession(sessionId, {
@@ -65,82 +57,91 @@ export function FinishSessionModal({
       setTimeout(() => {
         onOpenChange(false);
         onFinished?.();
+        setOutcome(null);
+        setNotes("");
+        setCelebrating(false);
       }, 1200);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-4xl">
         {celebrating ? (
-          <div className="py-8 flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in zoom-in-95 duration-200">
-            <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-              <CheckCircle2 className="h-7 w-7" />
+          <div className="py-10 flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in zoom-in-95 duration-200">
+            <div className="h-16 w-16 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-bounce">
+              <Trophy className="h-8 w-8" />
             </div>
-            <h3 className="text-xl font-bold tracking-tight">Nice.</h3>
-            <p className="text-sm text-muted-foreground">
+            <h3 className="text-2xl font-extrabold tracking-tight">Woohoo! 🎉</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
               You focused for{" "}
-              <span className="font-semibold text-foreground">
+              <span className="font-bold text-foreground">
                 {formatDuration(durationSeconds)}
               </span>
-              . Good work!
+              . High five!
             </p>
           </div>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="text-lg font-semibold">
-                Session complete
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <div className="p-1.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                Session Complete!
               </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4 pt-1">
-              <div className="rounded-lg bg-muted/60 p-3 text-center">
-                <span className="text-2xl font-bold tracking-tight text-foreground">
+              <div className="rounded-3xl bg-muted/50 border border-border/60 p-4 text-center">
+                <span className="text-3xl font-black tracking-tight text-foreground font-mono">
                   {formatDuration(durationSeconds)}
                 </span>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">
-                  focused time
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
+                  total focused time
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-foreground">
+                <label className="text-xs font-semibold text-foreground">
                   What did you accomplish?{" "}
                   <span className="text-muted-foreground font-normal">
                     (optional)
                   </span>
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {OUTCOME_OPTIONS.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() =>
-                        setOutcome(outcome === opt ? null : opt)
-                      }
-                      className={cn(
-                        "text-xs px-2.5 py-1.5 rounded-md border text-center transition-all",
-                        outcome === opt
-                          ? "bg-foreground text-background border-foreground font-medium shadow-xs"
-                          : "border-border/70 bg-card hover:bg-accent/60 text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {OUTCOME_OPTIONS.map((opt) => {
+                    const isSelected = outcome === opt.label;
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() =>
+                          setOutcome(isSelected ? null : opt.label)
+                        }
+                        className={cn(
+                          "text-xs font-semibold px-3 py-2 rounded-full border text-center transition-all duration-150 active:scale-95",
+                          isSelected
+                            ? opt.active + " shadow-xs"
+                            : cn("border-border/70 bg-card text-muted-foreground hover:text-foreground", opt.color)
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">
+                <label className="text-xs font-semibold text-foreground">
                   Notes{" "}
                   <span className="text-muted-foreground font-normal">
                     (optional)
                   </span>
                 </label>
                 <Textarea
-                  placeholder="Key takeaways, problems solved, or next steps..."
+                  placeholder="Key takeaways, thoughts, or next steps..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
@@ -151,14 +152,20 @@ export function FinishSessionModal({
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => onOpenChange(false)}
                   disabled={isSubmitting}
+                  className="rounded-full"
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save session"}
+                <Button
+                  onClick={handleSave}
+                  disabled={isSubmitting}
+                  variant="sky"
+                  className="rounded-full px-6"
+                >
+                  {isSubmitting ? "Saving..." : "Save Session"}
                 </Button>
               </div>
             </div>

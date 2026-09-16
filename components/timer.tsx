@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Play, Pause, Square, CircleDot } from "lucide-react";
+import { Play, Pause, Square, CircleDot, Sparkles } from "lucide-react";
 import { type StudySession } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { pauseSession, resumeSession } from "@/lib/actions";
 import { formatTimerDisplay } from "@/lib/timer";
+import { getSubjectColor } from "@/lib/colors";
 import { StartSessionModal } from "./start-session";
 import { FinishSessionModal } from "./session-form";
 import { cn } from "@/lib/utils";
@@ -48,7 +49,6 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
   const handlePause = React.useCallback(async () => {
     if (!session || actionLoading) return;
     setActionLoading(true);
-    // Optimistic local update
     setSession((prev) => (prev ? { ...prev, status: "paused" } : null));
     await pauseSession(session.id);
     setActionLoading(false);
@@ -80,7 +80,6 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
   // Global Keyboard Shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is inside an input, textarea, or contentEditable
       const target = e.target as HTMLElement;
       if (
         target &&
@@ -91,7 +90,6 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         return;
       }
 
-      // Space: Pause or Resume
       if (e.code === "Space" && session) {
         e.preventDefault();
         if (session.status === "active") {
@@ -101,13 +99,11 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         }
       }
 
-      // S: Start Session
       if (e.key.toLowerCase() === "s" && !session && !isStarting) {
         e.preventDefault();
         setIsStarting(true);
       }
 
-      // F: Finish Session
       if (e.key.toLowerCase() === "f" && session && !isFinishing) {
         e.preventDefault();
         setIsFinishing(true);
@@ -118,139 +114,175 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [session, isStarting, isFinishing, handlePause, handleResume]);
 
-  const displayElapsed = session ? (session.status === "active" ? elapsed : computeCurrentElapsed(session)) : 0;
+  const displayElapsed = session
+    ? session.status === "active"
+      ? elapsed
+      : computeCurrentElapsed(session)
+    : 0;
+
+  const colorTheme = session ? getSubjectColor(session.subject) : null;
 
   return (
-    <div className="flex flex-col items-center justify-center py-10 sm:py-14 text-center">
+    <div className="w-full">
       {/* State: Idle */}
       {!session && (
-        <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
-          <div className="space-y-1.5">
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Ready to code?
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Track the work. Don&apos;t turn tracking the work into the work.
+        <div className="rounded-4xl border border-border/80 bg-card/60 backdrop-blur-md p-8 sm:p-14 text-center shadow-lg">
+          <div className="relative space-y-6 max-w-md mx-auto">
+            <div className="inline-flex items-center justify-center p-3 rounded-full bg-sky-500/10 text-sky-500 mb-1 shadow-inner">
+              <Sparkles className="h-6 w-6 text-sky-500" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+                Ready to dive in?
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Track the work. Don&apos;t turn tracking the work into the work.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <StartSessionModal
+                subjects={subjects}
+                open={isStarting}
+                onOpenChange={setIsStarting}
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground/80 font-medium">
+              Press{" "}
+              <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
+                S
+              </kbd>{" "}
+              to start instantly
             </p>
           </div>
-
-          <div className="pt-2">
-            <StartSessionModal
-              subjects={subjects}
-              open={isStarting}
-              onOpenChange={setIsStarting}
-            />
-          </div>
-
-          <p className="text-xs text-muted-foreground/80">
-            Press <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border">S</kbd> to start
-          </p>
         </div>
       )}
 
       {/* State: Running or Paused */}
-      {session && (
-        <div className="space-y-6 w-full max-w-lg mx-auto">
-          {/* Subject & Topic Header */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
-                {session.subject}
-              </span>
-              {session.status === "paused" ? (
-                <Badge variant="secondary" className="text-xs font-medium">
-                  Paused
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="text-xs font-medium gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
+      {session && colorTheme && (
+        <div className="rounded-4xl border border-border/80 bg-card/70 backdrop-blur-md p-8 sm:p-12 text-center shadow-xl">
+
+          <div className="relative space-y-6 w-full max-w-lg mx-auto">
+            {/* Subject & Topic Header */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <span
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-sm font-extrabold border shadow-2xs",
+                    colorTheme.badge
+                  )}
                 >
-                  <CircleDot className="h-2 w-2 animate-ping" />
-                  Active
-                </Badge>
-              )}
-            </div>
-            {session.topic && (
-              <p className="text-sm text-muted-foreground font-medium">
-                {session.topic}
-              </p>
-            )}
-            {session.goal && (
-              <p className="text-xs text-muted-foreground/80 italic">
-                Goal: {session.goal}
-              </p>
-            )}
-          </div>
+                  {session.subject}
+                </span>
 
-          {/* Digital Timer Display */}
-          <div className="relative py-2">
-            <div
-              className={cn(
-                "text-6xl sm:text-7xl font-mono font-black tracking-tighter select-none transition-all duration-300",
-                session.status === "active"
-                  ? "text-foreground"
-                  : "text-muted-foreground opacity-75"
+                {session.status === "paused" ? (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-3 py-1 text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                  >
+                    Paused
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="rounded-full px-3 py-1 text-xs font-bold gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shadow-2xs"
+                  >
+                    <CircleDot className="h-2.5 w-2.5 animate-ping" />
+                    Active Focus
+                  </Badge>
+                )}
+              </div>
+
+              {session.topic && (
+                <p className="text-base text-foreground font-semibold">
+                  {session.topic}
+                </p>
               )}
-            >
-              {formatTimerDisplay(displayElapsed)}
+              {session.goal && (
+                <p className="text-xs text-muted-foreground italic">
+                  Goal: {session.goal}
+                </p>
+              )}
             </div>
-            <p className="text-xs uppercase font-medium tracking-widest text-muted-foreground mt-2">
-              {session.status === "active" ? "Focused Time" : "Timer Paused"}
+
+            {/* Digital Timer Display */}
+            <div className="py-2">
+              <div
+                className={cn(
+                  "text-6xl sm:text-7xl md:text-8xl font-mono font-black tracking-tighter select-none transition-all duration-300",
+                  session.status === "active"
+                    ? "text-foreground drop-shadow-sm"
+                    : "text-muted-foreground opacity-70"
+                )}
+              >
+                {formatTimerDisplay(displayElapsed)}
+              </div>
+              <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground/90 mt-2">
+                {session.status === "active" ? "Focused Time" : "Timer Paused"}
+              </p>
+            </div>
+
+            {/* Playful Pill Control Buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              {session.status === "active" ? (
+                <Button
+                  variant="amber"
+                  size="lg"
+                  onClick={handlePause}
+                  disabled={actionLoading}
+                  className="gap-2 px-6"
+                >
+                  <Pause className="h-4 w-4" />
+                  Pause
+                </Button>
+              ) : (
+                <Button
+                  variant="emerald"
+                  size="lg"
+                  onClick={handleResume}
+                  disabled={actionLoading}
+                  className="gap-2 px-6"
+                >
+                  <Play className="h-4 w-4 fill-current" />
+                  Resume
+                </Button>
+              )}
+
+              <Button
+                variant="rose"
+                size="lg"
+                onClick={() => setIsFinishing(true)}
+                disabled={actionLoading}
+                className="gap-2 px-6"
+              >
+                <Square className="h-4 w-4 fill-current" />
+                Finish
+              </Button>
+            </div>
+
+            {/* Shortcut hint */}
+            <p className="text-xs text-muted-foreground/80 font-medium">
+              <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
+                Space
+              </kbd>{" "}
+              to {session.status === "active" ? "pause" : "resume"} ·{" "}
+              <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
+                F
+              </kbd>{" "}
+              to finish
             </p>
+
+            {/* Finish Modal */}
+            <FinishSessionModal
+              sessionId={session.id}
+              durationSeconds={displayElapsed}
+              open={isFinishing}
+              onOpenChange={setIsFinishing}
+              onFinished={() => setSession(null)}
+            />
           </div>
-
-          {/* Control Buttons */}
-          <div className="flex items-center justify-center gap-3 pt-1">
-            {session.status === "active" ? (
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={handlePause}
-                disabled={actionLoading}
-                className="gap-2 px-5 min-w-[110px]"
-              >
-                <Pause className="h-4 w-4" />
-                Pause
-              </Button>
-            ) : (
-              <Button
-                variant="default"
-                size="lg"
-                onClick={handleResume}
-                disabled={actionLoading}
-                className="gap-2 px-5 min-w-[110px]"
-              >
-                <Play className="h-4 w-4 fill-current" />
-                Resume
-              </Button>
-            )}
-
-            <Button
-              variant="secondary"
-              size="lg"
-              onClick={() => setIsFinishing(true)}
-              disabled={actionLoading}
-              className="gap-2 px-5"
-            >
-              <Square className="h-4 w-4 fill-current" />
-              Finish
-            </Button>
-          </div>
-
-          {/* Shortcut hint */}
-          <p className="text-xs text-muted-foreground/70">
-            <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border">Space</kbd> to {session.status === "active" ? "pause" : "resume"} · <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border">F</kbd> to finish
-          </p>
-
-          {/* Finish Modal */}
-          <FinishSessionModal
-            sessionId={session.id}
-            durationSeconds={displayElapsed}
-            open={isFinishing}
-            onOpenChange={setIsFinishing}
-            onFinished={() => setSession(null)}
-          />
         </div>
       )}
     </div>

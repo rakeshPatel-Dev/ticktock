@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { createSession } from "@/lib/actions";
+import { getSubjectColor } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 
 interface StartSessionProps {
   subjects?: string[];
@@ -41,13 +43,7 @@ export function StartSessionModal({
 
   React.useEffect(() => {
     if (open) {
-      setError(null);
       setTimeout(() => subjectInputRef.current?.focus(), 50);
-    } else {
-      setSubject("");
-      setTopic("");
-      setGoal("");
-      setError(null);
     }
   }, [open]);
 
@@ -88,33 +84,36 @@ export function StartSessionModal({
         <DialogTrigger
           render={
             <Button
+              variant="sky"
               size="lg"
-              className="gap-2 font-medium px-6 py-2.5 rounded-full shadow-md hover:shadow-lg transition-all"
+              className="gap-2.5 px-8 text-base shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-105 active:scale-95 transition-all"
             >
-              <Play className="h-4 w-4 fill-current" />
-              Start session
+              <Play className="h-5 w-5 fill-current" />
+              Start Session
             </Button>
           }
         />
       )}
 
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-4xl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Start Session
+          <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
+            <div className="p-1.5 rounded-full bg-sky-500 text-white shadow-sm">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            Start a Session
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {error && (
-            <div className="p-3 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20 leading-relaxed">
+            <div className="p-3 text-xs rounded-2xl bg-destructive/10 text-destructive border border-destructive/25 leading-relaxed font-medium">
               {error}
             </div>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
+            <label className="text-xs font-semibold text-foreground">
               Subject <span className="text-destructive">*</span>
             </label>
             <Input
@@ -125,26 +124,33 @@ export function StartSessionModal({
               disabled={isSubmitting}
               autoComplete="off"
             />
-            {/* Quick subject suggestion pills */}
+
+            {/* Playful colorful subject suggestion pills */}
             {subjects.length > 0 && !subject && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {subjects.slice(0, 5).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSubject(s)}
-                    className="text-[11px] px-2 py-0.5 rounded-full border border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-1.5 pt-1.5">
+                {subjects.slice(0, 6).map((s) => {
+                  const theme = getSubjectColor(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSubject(s)}
+                      className={cn(
+                        "text-[11px] font-semibold px-3 py-1 rounded-full border transition-all active:scale-95",
+                        theme.pill
+                      )}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
-              Topic <span className="text-muted-foreground">(optional)</span>
+            <label className="text-xs font-semibold text-foreground">
+              Topic <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <Input
               placeholder="e.g. Binary Search, Virtual Memory"
@@ -155,8 +161,8 @@ export function StartSessionModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
-              Goal <span className="text-muted-foreground">(optional)</span>
+            <label className="text-xs font-semibold text-foreground">
+              Goal <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <Input
               placeholder="e.g. Solve 5 problems, read chapter 4"
@@ -166,17 +172,23 @@ export function StartSessionModal({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-3">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={() => setOpen(false)}
               disabled={isSubmitting}
+              className="rounded-full"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !subject.trim()}>
-              {isSubmitting ? "Starting..." : "Start"}
+            <Button
+              type="submit"
+              variant="sky"
+              disabled={isSubmitting || !subject.trim()}
+              className="rounded-full px-6"
+            >
+              {isSubmitting ? "Starting..." : "Start Timer"}
             </Button>
           </div>
         </form>
