@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateSession, deleteSession } from "@/lib/actions";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
+import { getSubjectColor } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 
 interface SessionDetailModalProps {
   session: StudySession | null;
@@ -82,13 +84,15 @@ export function SessionDetailModal({
     onDeleted?.();
   };
 
+  const theme = getSubjectColor(session.subject);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-4xl">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold flex items-center justify-between">
             <span>Session Details</span>
-            <Badge variant="outline" className="text-xs font-normal">
+            <Badge variant="outline" className="text-xs font-normal rounded-full px-3 py-0.5">
               {formatDateGroup(session.startedAt)}
             </Badge>
           </DialogTitle>
@@ -108,6 +112,7 @@ export function SessionDetailModal({
                 size="sm"
                 onClick={() => setIsDeleting(false)}
                 disabled={isSubmitting}
+                className="rounded-full"
               >
                 Cancel
               </Button>
@@ -116,6 +121,7 @@ export function SessionDetailModal({
                 size="sm"
                 onClick={handleDelete}
                 disabled={isSubmitting}
+                className="rounded-full"
               >
                 {isSubmitting ? "Deleting..." : "Confirm Delete"}
               </Button>
@@ -124,47 +130,56 @@ export function SessionDetailModal({
         ) : isEditing ? (
           <div className="space-y-3 py-2 text-left">
             <div className="space-y-1">
-              <label className="text-xs font-medium">Subject</label>
+              <label className="text-xs font-semibold text-foreground">Subject</label>
               <Input
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                className="rounded-full"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium">Topic</label>
-              <Input value={topic} onChange={(e) => setTopic(e.target.value)} />
+              <label className="text-xs font-semibold text-foreground">Topic</label>
+              <Input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                className="rounded-full"
+              />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-xs font-medium">Duration (minutes)</label>
+                <label className="text-xs font-semibold text-foreground">Duration (minutes)</label>
                 <Input
                   type="number"
                   min={0}
                   value={durationMinutes}
                   onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                  className="rounded-full"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium">Goal</label>
+                <label className="text-xs font-semibold text-foreground">Goal</label>
                 <Input
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
+                  className="rounded-full"
                 />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium">Outcome</label>
+              <label className="text-xs font-semibold text-foreground">Outcome</label>
               <Input
                 value={outcome}
                 onChange={(e) => setOutcome(e.target.value)}
+                className="rounded-full"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium">Notes</label>
+              <label className="text-xs font-semibold text-foreground">Notes</label>
               <Textarea
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                className="rounded-3xl"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -173,10 +188,17 @@ export function SessionDetailModal({
                 size="sm"
                 onClick={() => setIsEditing(false)}
                 disabled={isSubmitting}
+                className="rounded-full"
               >
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleUpdate} disabled={isSubmitting}>
+              <Button
+                size="sm"
+                variant="sky"
+                onClick={handleUpdate}
+                disabled={isSubmitting}
+                className="rounded-full px-5"
+              >
                 {isSubmitting ? "Saving..." : "Save changes"}
               </Button>
             </div>
@@ -184,12 +206,19 @@ export function SessionDetailModal({
         ) : (
           <div className="space-y-4 py-2 text-left">
             {/* Subject and Topic header */}
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold tracking-tight text-foreground">
-                {session.subject}
-              </h3>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "px-3 py-1 rounded-full text-xs font-bold border shadow-2xs",
+                    theme.badge
+                  )}
+                >
+                  {session.subject}
+                </span>
+              </div>
               {session.topic && (
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-base font-semibold text-foreground">
                   {session.topic}
                 </p>
               )}
@@ -197,29 +226,29 @@ export function SessionDetailModal({
 
             {/* Metrics pills */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
-                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> Focused Duration
+              <div className="rounded-3xl border border-border/60 bg-muted/30 p-3">
+                <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                  <Clock className="h-3.5 w-3.5 text-sky-500" /> Focused Duration
                 </span>
-                <p className="text-base font-semibold text-foreground mt-0.5">
+                <p className="text-lg font-bold text-foreground mt-0.5">
                   {formatDuration(session.durationSeconds)}
                 </p>
               </div>
 
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
-                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <PauseCircle className="h-3.5 w-3.5" /> Paused Time
+              <div className="rounded-3xl border border-border/60 bg-muted/30 p-3">
+                <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                  <PauseCircle className="h-3.5 w-3.5 text-amber-500" /> Paused Time
                 </span>
-                <p className="text-base font-semibold text-foreground mt-0.5">
+                <p className="text-lg font-bold text-foreground mt-0.5">
                   {formatDuration(session.pausedSeconds)}
                 </p>
               </div>
             </div>
 
             {/* Time meta */}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground border-y border-border/40 py-2">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground border-y border-border/40 py-2.5">
               <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3.5 w-3.5" />
                 {formatDateGroup(session.startedAt)}
               </span>
               <span>•</span>
@@ -237,25 +266,25 @@ export function SessionDetailModal({
               {session.goal && (
                 <div className="space-y-0.5">
                   <span className="font-semibold text-muted-foreground flex items-center gap-1">
-                    <Target className="h-3 w-3" /> Goal
+                    <Target className="h-3.5 w-3.5 text-orange-500" /> Goal
                   </span>
-                  <p className="text-foreground">{session.goal}</p>
+                  <p className="text-foreground font-medium">{session.goal}</p>
                 </div>
               )}
 
               {session.outcome && (
                 <div className="space-y-0.5">
                   <span className="font-semibold text-muted-foreground flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Outcome
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Outcome
                   </span>
-                  <p className="text-foreground">{session.outcome}</p>
+                  <p className="text-foreground font-medium">{session.outcome}</p>
                 </div>
               )}
 
               {session.notes && (
                 <div className="space-y-0.5">
                   <span className="font-semibold text-muted-foreground flex items-center gap-1">
-                    <FileText className="h-3 w-3" /> Notes
+                    <FileText className="h-3.5 w-3.5 text-rose-500" /> Notes
                   </span>
                   <p className="text-foreground whitespace-pre-wrap leading-relaxed">
                     {session.notes}
@@ -268,7 +297,7 @@ export function SessionDetailModal({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
                 onClick={() => setIsDeleting(true)}
               >
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />
@@ -277,6 +306,7 @@ export function SessionDetailModal({
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full px-4"
                 onClick={() => setIsEditing(true)}
               >
                 <Edit3 className="h-3.5 w-3.5 mr-1.5" />

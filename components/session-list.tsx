@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
+import { getSubjectColor } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 import { SessionDetailModal } from "./session-detail-modal";
 
 interface SessionListProps {
@@ -142,7 +144,7 @@ export function SessionListView({
 
       {/* Session History List Grouped by Date */}
       {groupKeys.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/70 p-12 text-center space-y-2.5">
+        <div className="rounded-4xl border border-dashed border-border/70 p-12 text-center space-y-2.5 bg-card/20">
           <div className="h-10 w-10 mx-auto rounded-full bg-muted flex items-center justify-center text-muted-foreground">
             <Inbox className="h-5 w-5" />
           </div>
@@ -159,65 +161,73 @@ export function SessionListView({
         <div className="space-y-6">
           {groupKeys.map((groupLabel) => (
             <div key={groupLabel} className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-1">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-2">
                 {groupLabel}
               </h4>
 
-              <div className="divide-y divide-border/40 rounded-xl border border-border/60 bg-card/50 overflow-hidden shadow-2xs">
-                {groupedSessions[groupLabel].map((session) => (
-                  <button
-                    key={session.id}
-                    type="button"
-                    onClick={() => setActiveDetailSession(session)}
-                    className="w-full text-left p-3.5 sm:px-4 flex items-center justify-between hover:bg-accent/40 transition-colors group"
-                  >
-                    <div className="space-y-1 min-w-0 pr-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-foreground truncate">
-                          {session.subject}
-                        </span>
-                        {session.topic && (
-                          <>
-                            <span className="text-muted-foreground/60 text-xs">·</span>
-                            <span className="text-xs text-muted-foreground font-medium truncate">
-                              {session.topic}
-                            </span>
-                          </>
-                        )}
+              <div className="divide-y divide-border/40 rounded-4xl border border-border/60 bg-card/50 overflow-hidden shadow-2xs">
+                {groupedSessions[groupLabel].map((session) => {
+                  const theme = getSubjectColor(session.subject);
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      onClick={() => setActiveDetailSession(session)}
+                      className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-colors group"
+                    >
+                      <div className="space-y-1.5 min-w-0 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs",
+                              theme.badge
+                            )}
+                          >
+                            {session.subject}
+                          </span>
+                          {session.topic && (
+                            <>
+                              <span className="text-muted-foreground/60 text-xs">·</span>
+                              <span className="text-xs text-muted-foreground font-medium truncate">
+                                {session.topic}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatTime(session.startedAt)}
+                          </span>
+                          {session.outcome && (
+                            <>
+                              <span>•</span>
+                              <span className="px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-medium border border-border/60">
+                                {session.outcome}
+                              </span>
+                            </>
+                          )}
+                          {session.notes && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[200px] text-muted-foreground/80 italic">
+                                &ldquo;{session.notes}&rdquo;
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatTime(session.startedAt)}
-                        </span>
-                        {session.outcome && (
-                          <>
-                            <span>•</span>
-                            <span className="px-1.5 py-0.5 rounded bg-muted text-foreground text-[11px] font-medium">
-                              {session.outcome}
-                            </span>
-                          </>
-                        )}
-                        {session.notes && (
-                          <>
-                            <span>•</span>
-                            <span className="truncate max-w-[200px] text-muted-foreground/80 italic">
-                              &ldquo;{session.notes}&rdquo;
-                            </span>
-                          </>
-                        )}
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <Badge variant="secondary" className="font-mono text-xs font-semibold rounded-full px-3 py-0.5">
+                          {formatDuration(session.durationSeconds)}
+                        </Badge>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <Badge variant="secondary" className="font-mono text-xs font-semibold">
-                        {formatDuration(session.durationSeconds)}
-                      </Badge>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
