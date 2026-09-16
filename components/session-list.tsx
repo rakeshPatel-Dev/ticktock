@@ -97,12 +97,12 @@ export function SessionListView({
       {/* Controls: Search & Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search subject, topic, or notes..."
+            placeholder="Search by subject, topic, or notes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-card/60"
+            className="pl-10 bg-card/60 h-11 rounded-full text-sm"
           />
         </div>
 
@@ -112,7 +112,7 @@ export function SessionListView({
             value={selectedSubject}
             onValueChange={(val) => setSelectedSubject(val || "all")}
           >
-            <SelectTrigger className="w-[140px] sm:w-[160px] bg-card/60">
+            <SelectTrigger className="w-[140px] sm:w-[160px] bg-card/60 h-11 rounded-full text-sm">
               <SelectValue placeholder="All subjects" />
             </SelectTrigger>
             <SelectContent>
@@ -130,7 +130,7 @@ export function SessionListView({
             value={dateRange}
             onValueChange={(val) => setDateRange(val || "all")}
           >
-            <SelectTrigger className="w-[120px] bg-card/60">
+            <SelectTrigger className="w-[125px] bg-card/60 h-11 rounded-full text-sm">
               <SelectValue placeholder="All time" />
             </SelectTrigger>
             <SelectContent>
@@ -145,16 +145,16 @@ export function SessionListView({
       {/* Session History List Grouped by Date */}
       {groupKeys.length === 0 ? (
         <div className="rounded-4xl border border-dashed border-border/70 p-12 text-center space-y-2.5 bg-card/20">
-          <div className="h-10 w-10 mx-auto rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-            <Inbox className="h-5 w-5" />
+          <div className="h-12 w-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-500">
+            <Inbox className="h-6 w-6" />
           </div>
-          <p className="text-base font-semibold text-foreground">
+          <p className="text-lg font-bold text-foreground">
             No sessions found
           </p>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
             {initialSessions.length === 0
-              ? "Your history is empty. Future-you is going to appreciate this page. Start your first session on the dashboard!"
-              : "Try adjusting your search query or filters to see more results."}
+              ? "Your session history is clear right now. Start your first session on the dashboard to build your log!"
+              : "Try adjusting your search query or filters to find what you're looking for."}
           </p>
         </div>
       ) : (

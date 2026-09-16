@@ -33,24 +33,24 @@ export function DashboardSummaryView({
   // Thoughtful non-punitive messaging
   const getGoalMessage = () => {
     if (summary.totalFocusedSeconds === 0) {
-      return "Nothing tracked yet. Ready when you are.";
+      return "Nothing tracked yet today. Ready whenever you are.";
     }
     if (summary.totalFocusedSeconds >= goalSeconds) {
-      return "Daily goal complete. You can stop guilt-free.";
+      return "Daily focus goal reached! Outstanding work today.";
     }
-    return `Still ${formatDuration(summary.totalFocusedSeconds)} of real work.`;
+    return `${formatDuration(summary.totalFocusedSeconds)} focused today. Every session builds momentum!`;
   };
 
   return (
     <div className="space-y-8 w-full">
       {/* Daily Progress Widget */}
-      <Card className="border-border/60 shadow-xs bg-card/50">
+      <Card className="border-border/60 shadow-xs bg-card/50 rounded-4xl">
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Today&apos;s Goal
             </CardTitle>
-            <div className="text-xl font-bold tracking-tight text-foreground mt-0.5">
+            <div className="text-2xl font-extrabold tracking-tight text-foreground mt-0.5">
               {formatDuration(summary.totalFocusedSeconds)}{" "}
               <span className="text-sm font-normal text-muted-foreground">
                 / {dailyGoalHours}h goal
@@ -145,12 +145,12 @@ export function DashboardSummaryView({
         </div>
 
         {summary.recentSessions.length === 0 ? (
-          <div className="rounded-4xl border border-dashed border-border/70 p-8 text-center space-y-2 bg-card/20">
-            <p className="text-sm font-medium text-foreground">
-              Your history is empty.
+          <div className="rounded-4xl border border-dashed border-border/70 p-10 text-center space-y-2.5 bg-card/20">
+            <p className="text-base font-semibold text-foreground">
+              No sessions tracked yet today.
             </p>
-            <p className="text-xs text-muted-foreground">
-              Future-you is going to appreciate this page. Start your first session above!
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              Start your first session above to begin your daily focus log!
             </p>
           </div>
         ) : (

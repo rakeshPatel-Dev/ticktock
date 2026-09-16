@@ -159,8 +159,8 @@ export function AnalyticsView({
           </CardHeader>
           <CardContent className="space-y-4">
             {subjectMetrics.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">
-                Nothing tracked yet. Ready when you are.
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Nothing tracked yet this week. Complete a session to see your subject breakdown!
               </p>
             ) : (
               subjectMetrics.map((item) => {
@@ -203,8 +203,8 @@ export function AnalyticsView({
           </CardHeader>
           <CardContent className="space-y-3">
             {topicMetrics.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">
-                No topic breakdown available yet. Add topics to your study sessions to see details here!
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                No topic breakdown available yet. Add topics when starting a session to see detailed insights!
               </p>
             ) : (
               <div className="space-y-2">

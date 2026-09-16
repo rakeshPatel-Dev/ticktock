@@ -113,22 +113,26 @@ export function StartSessionModal({
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
+            <label className="text-sm font-semibold text-foreground">
               Subject <span className="text-destructive">*</span>
             </label>
             <Input
               ref={subjectInputRef}
-              placeholder="e.g. DSA, Operating Systems, Web Dev"
+              placeholder="e.g. Writing, Biology, Design, Piano, Study"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               disabled={isSubmitting}
               autoComplete="off"
+              className="h-11 rounded-full px-4 text-sm"
             />
 
             {/* Playful colorful subject suggestion pills */}
-            {subjects.length > 0 && !subject && (
+            {!subject && (
               <div className="flex flex-wrap gap-1.5 pt-1.5">
-                {subjects.slice(0, 6).map((s) => {
+                {(subjects.length > 0
+                  ? subjects.slice(0, 6)
+                  : ["Writing", "Reading", "Study", "Design", "Project", "Practice"]
+                ).map((s) => {
                   const theme = getSubjectColor(s);
                   return (
                     <button
@@ -136,7 +140,7 @@ export function StartSessionModal({
                       type="button"
                       onClick={() => setSubject(s)}
                       className={cn(
-                        "text-[11px] font-semibold px-3 py-1 rounded-full border transition-all active:scale-95",
+                        "text-xs font-semibold px-3 py-1 rounded-full border transition-all active:scale-95 shadow-2xs",
                         theme.pill
                       )}
                     >
@@ -149,26 +153,28 @@ export function StartSessionModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
+            <label className="text-sm font-semibold text-foreground">
               Topic <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <Input
-              placeholder="e.g. Binary Search, Virtual Memory"
+              placeholder="e.g. Chapter 4, Draft outline, Presentation"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               disabled={isSubmitting}
+              className="h-11 rounded-full px-4 text-sm"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
+            <label className="text-sm font-semibold text-foreground">
               Goal <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <Input
-              placeholder="e.g. Solve 5 problems, read chapter 4"
+              placeholder="e.g. Write 1,000 words, read 20 pages, review notes"
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               disabled={isSubmitting}
+              className="h-11 rounded-full px-4 text-sm"
             />
           </div>
 
