@@ -174,10 +174,16 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
     <div className="w-full">
       {/* State: Idle */}
       {!session && (
-        <div className="rounded-4xl border border-border/50 bg-card p-8 sm:p-14 text-center [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
+        <div className="rounded-4xl border border-border/50 bg-card p-6 sm:p-10 lg:p-14 text-center [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
           <div className="relative space-y-6 max-w-xl mx-auto">
-            <div className="inline-flex items-center justify-center p-1 rounded-full overflow-hidden mb-1 ">
-              <Image src="/images/session_buddy.svg" alt="Start session" width={150} height={150} />
+            <div className="inline-flex items-center justify-center p-1 rounded-full overflow-hidden mb-1">
+              <Image
+                src="/images/session_buddy.svg"
+                alt="Start session"
+                width={150}
+                height={150}
+                className="h-28 w-28 sm:h-40 sm:w-40"
+              />
             </div>
 
             <div className="space-y-3">
@@ -212,7 +218,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
       {session && colorTheme && !isFullScreen && (
         <div
           className={cn(
-            "rounded-4xl border p-8 sm:p-14 text-center transition-all duration-300 relative backdrop-blur-xl",
+            "rounded-4xl border p-6 sm:p-10 lg:p-14 text-center transition-all duration-300 relative backdrop-blur-xl",
             session.status === "active"
               ? "border-emerald-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(16,185,129,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
               : "border-amber-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(245,158,11,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
@@ -235,7 +241,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             </Button>
           </div>
 
-          <div className="relative space-y-6 w-full max-w-xl mx-auto">
+          <div className="@container relative space-y-6 w-full max-w-xl mx-auto">
             {/* Subject & Topic Header */}
             <div className="space-y-2.5">
               <div className="flex flex-wrap items-center justify-center gap-2.5">
@@ -280,7 +286,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             <div className="py-2 sm:py-4">
               <div
                 className={cn(
-                  "text-7xl sm:text-8xl md:text-9xl font-mono font-black tracking-tight select-none transition-all duration-300 leading-none",
+                  "text-[clamp(2.5rem,20cqw,7rem)] font-mono font-black tracking-tight select-none transition-all duration-300 leading-none w-full",
                   session.status === "active"
                     ? "text-foreground drop-shadow-sm"
                     : "text-muted-foreground opacity-60"
@@ -361,7 +367,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
       {/* Full Screen Immersive Mode — rendered inside the fullscreen element */}
       {session && colorTheme && isFullScreen && (
-        <div className="fixed inset-0 z-50 bg-background flex flex-col justify-between p-6 sm:p-10 md:p-14 animate-in fade-in duration-200">
+        <div className="@container fixed inset-0 z-50 bg-background flex flex-col justify-between p-6 sm:p-10 md:p-14 overflow-hidden animate-in fade-in duration-200">
           {/* Top Bar */}
           <div className="flex items-center justify-between w-full max-w-6xl mx-auto">
             <div className="flex items-center gap-3">
@@ -421,8 +427,8 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               <div
                 className={cn(
                   "font-mono font-black tracking-tight leading-none transition-all duration-300",
-                  // Scales from large → massive as screen grows
-                  "text-[5rem] sm:text-[9rem] md:text-[14rem] lg:text-[18rem] xl:text-[20rem]",
+                  // Scales with the fullscreen container so the timer never overflows
+                  "text-[clamp(2.75rem,13cqw,16rem)]",
                   session.status === "active"
                     ? "text-foreground"
                     : "text-muted-foreground opacity-60"
