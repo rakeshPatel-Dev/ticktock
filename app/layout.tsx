@@ -18,6 +18,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "TickTock - Focused Time Tracking",
   description: "A calm, minimal coding and study session tracker.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon1.png", type: "image/png" },
+    ],
+    apple: "/apple-icon.png",
+  },
+  other: {
+    "apple-mobile-web-app-title": "TickTock",
+  },
 };
 
 export default function RootLayout({
