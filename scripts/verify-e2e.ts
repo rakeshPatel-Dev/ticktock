@@ -88,15 +88,13 @@ async function runVerification() {
   console.assert(subjectAnalytics[0].subject === "DSA", "Expected subject DSA");
   console.log("✓ Subject analytics accurate");
 
-  // 10. Update Session
+  // 10. Update Session (duration is locked — only metadata can change)
   const updateRes = await updateSession(sessionId, {
     notes: "Updated notes: master binary search.",
-    durationSeconds: 1800, // 30 minutes
   });
   console.assert(updateRes.success, "Update failed");
   const updatedList = await getSessions();
   console.assert(updatedList[0].notes === "Updated notes: master binary search.", "Notes did not update");
-  console.assert(updatedList[0].durationSeconds === 1800, "Duration did not update");
   console.log("✓ Session updated successfully");
 
   // 11. Delete Session

@@ -42,7 +42,6 @@ export function SessionDetailModal({
   const [goal, setGoal] = React.useState("");
   const [outcome, setOutcome] = React.useState("");
   const [notes, setNotes] = React.useState("");
-  const [durationMinutes, setDurationMinutes] = React.useState(0);
 
   React.useEffect(() => {
     if (session) {
@@ -51,7 +50,6 @@ export function SessionDetailModal({
       setGoal(session.goal || "");
       setOutcome(session.outcome || "");
       setNotes(session.notes || "");
-      setDurationMinutes(Math.round(session.durationSeconds / 60));
       setIsEditing(false);
       setIsDeleting(false);
     }
@@ -62,13 +60,13 @@ export function SessionDetailModal({
   const handleUpdate = async () => {
     if (!subject.trim()) return;
     setIsSubmitting(true);
+    // User cannot update duration of finished session
     await updateSession(session.id, {
       subject: subject.trim(),
       topic: topic.trim() || undefined,
       goal: goal.trim() || undefined,
       outcome: outcome.trim() || undefined,
       notes: notes.trim() || undefined,
-      durationSeconds: Math.max(0, durationMinutes * 60),
     });
     setIsSubmitting(false);
     setIsEditing(false);
@@ -145,25 +143,23 @@ export function SessionDetailModal({
                 className="rounded-full"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-foreground">Duration (minutes)</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  className="rounded-full"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-foreground">Goal</label>
-                <Input
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  className="rounded-full"
-                />
-              </div>
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/50 text-xs">
+              <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-sky-500" /> Tracked Duration
+              </span>
+              <span className="font-mono font-bold text-foreground">
+                {formatDuration(session.durationSeconds)} (locked)
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground">Goal</label>
+              <Input
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder="e.g. Read 20 pages, finish chapter"
+                className="rounded-full"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">Outcome</label>

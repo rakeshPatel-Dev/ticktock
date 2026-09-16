@@ -36,7 +36,6 @@ const updateSessionSchema = z.object({
   goal: z.string().trim().max(300).optional(),
   outcome: z.string().trim().max(200).optional(),
   notes: z.string().trim().max(2000).optional(),
-  durationSeconds: z.number().int().nonnegative().optional(),
 });
 
 /**
@@ -252,8 +251,6 @@ export async function updateSession(
     if (validated.outcome !== undefined)
       updateData.outcome = validated.outcome || null;
     if (validated.notes !== undefined) updateData.notes = validated.notes || null;
-    if (validated.durationSeconds !== undefined)
-      updateData.durationSeconds = validated.durationSeconds;
 
     await db.update(sessions).set(updateData).where(eq(sessions.id, id));
 
