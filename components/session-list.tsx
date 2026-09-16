@@ -106,13 +106,13 @@ export function SessionListView({
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full sm:w-auto items-center gap-2">
           {/* Subject Filter */}
           <Select
             value={selectedSubject}
             onValueChange={(val) => setSelectedSubject(val || "all")}
           >
-            <SelectTrigger className="w-[140px] sm:w-[160px] bg-card/60 h-11 rounded-full text-sm">
+            <SelectTrigger className="flex-1 sm:flex-none sm:w-[160px] bg-card/60 h-11 rounded-full text-sm">
               <SelectValue placeholder="All subjects" />
             </SelectTrigger>
             <SelectContent>
@@ -130,7 +130,7 @@ export function SessionListView({
             value={dateRange}
             onValueChange={(val) => setDateRange(val || "all")}
           >
-            <SelectTrigger className="w-[125px] bg-card/60 h-11 rounded-full text-sm">
+            <SelectTrigger className="flex-1 sm:flex-none sm:w-[125px] bg-card/60 h-11 rounded-full text-sm">
               <SelectValue placeholder="All time" />
             </SelectTrigger>
             <SelectContent>

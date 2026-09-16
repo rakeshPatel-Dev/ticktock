@@ -108,7 +108,7 @@ export function AnalyticsView({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end pt-6 pb-2 h-44 border-b border-border/40">
+          <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end pt-6 pb-2 h-44 border-b border-border/40 overflow-x-hidden">
             {dailyMetrics.map((day) => {
               const heightPercent =
                 maxDaySeconds > 0
@@ -121,7 +121,7 @@ export function AnalyticsView({
                   className="flex flex-col items-center gap-2 h-full justify-end group relative"
                 >
                   {/* Tooltip on hover */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 px-3 py-1 bg-foreground text-background text-xs font-mono font-semibold rounded-full shadow-md pointer-events-none whitespace-nowrap z-10">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute left-1/2 -translate-x-1/2 -top-8 px-3 py-1 bg-foreground text-background text-xs font-mono font-semibold rounded-full shadow-md pointer-events-none whitespace-nowrap z-10">
                     {formatDuration(day.durationSeconds)} ({day.sessionCount} sessions)
                   </div>
 
