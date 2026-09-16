@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Timer,
@@ -39,8 +40,8 @@ export function Navbar() {
             href="/"
             className="flex items-center gap-2 font-bold tracking-tight text-foreground group transition-transform active:scale-95"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-md shadow-sky-500/40 group-hover:rotate-12 transition-transform">
-              <Timer className="h-4 w-4" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden shadow-md shadow-sky-500/40 group-hover:rotate-12 transition-transform">
+              <Image src="/icon1.png" alt="TickTock" width={32} height={32} />
             </div>
             <span className="text-base font-extrabold tracking-tight text-foreground">
               TickTock
