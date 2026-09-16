@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Play, Pause, Square, CircleDot, Sparkles, Maximize2, Minimize2 } from "lucide-react";
+import { Play, Pause, Square, Sparkles, Maximize2, Minimize2 } from "lucide-react";
 import { type StudySession } from "@/db/schema";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { pauseSession, resumeSession } from "@/lib/actions";
 import { formatTimerDisplay } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
@@ -174,17 +173,17 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
     <div className="w-full">
       {/* State: Idle */}
       {!session && (
-        <div className="rounded-4xl border border-border/80 bg-card/60 backdrop-blur-md p-8 sm:p-14 text-center shadow-lg">
+        <div className="rounded-4xl border border-border/50 bg-card p-8 sm:p-14 text-center [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
           <div className="relative space-y-6 max-w-xl mx-auto">
-            <div className="inline-flex items-center justify-center p-3 rounded-full bg-sky-500/10 text-sky-500 mb-1 shadow-inner">
-              <Sparkles className="h-6 w-6 text-sky-500" />
+            <div className="inline-flex items-center justify-center p-3.5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 mb-1 ring-1 ring-sky-500/25 shadow-sm shadow-sky-500/20">
+              <Sparkles className="h-6 w-6" />
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground">
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground">
                 Ready to focus?
               </h2>
-              <p className="text-base text-muted-foreground leading-relaxed max-w-md mx-auto">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-md mx-auto">
                 Track your focused time honestly and simply. Zero clutter, pure momentum.
               </p>
             </div>
@@ -197,7 +196,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               />
             </div>
 
-            <p className="text-xs text-muted-foreground font-medium">
+            <p className="text-xs sm:text-sm text-muted-foreground font-semibold">
               Press{" "}
               <kbd className="font-mono bg-muted/80 px-2.5 py-0.5 rounded-full border border-border font-bold shadow-2xs">
                 S
@@ -210,18 +209,25 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
       {/* State: Running or Paused (normal view) */}
       {session && colorTheme && !isFullScreen && (
-        <div className="rounded-4xl border border-border/80 bg-card/70 backdrop-blur-md p-8 sm:p-12 text-center shadow-xl relative">
+        <div
+          className={cn(
+            "rounded-4xl border p-8 sm:p-14 text-center transition-all duration-300 relative backdrop-blur-xl",
+            session.status === "active"
+              ? "border-emerald-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(16,185,129,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
+              : "border-amber-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(245,158,11,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
+          )}
+        >
           {/* Top Row: Fullscreen button */}
           <div className="absolute top-6 right-6 sm:top-8 sm:right-8">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={enterFullScreen}
-              className="rounded-full gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="rounded-full gap-2 text-xs font-semibold px-3.5 py-1.5 text-muted-foreground hover:text-foreground bg-card/80 border-border/70 shadow-2xs hover:shadow-xs transition-all"
               title="Full screen (M)"
             >
-              <Maximize2 className="h-4 w-4" />
-              <span className="hidden sm:inline font-semibold">Full Screen</span>
+              <Maximize2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Full Screen</span>
               <kbd className="hidden sm:inline font-mono bg-muted px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold">
                 M
               </kbd>
@@ -230,11 +236,11 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
           <div className="relative space-y-6 w-full max-w-xl mx-auto">
             {/* Subject & Topic Header */}
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-center gap-2">
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
                 <span
                   className={cn(
-                    "px-4 py-1.5 rounded-full text-sm font-extrabold border shadow-2xs",
+                    "px-4 py-1 rounded-full text-xs sm:text-sm font-black border shadow-2xs",
                     colorTheme.badge
                   )}
                 >
@@ -242,63 +248,61 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 </span>
 
                 {session.status === "paused" ? (
-                  <Badge
-                    variant="secondary"
-                    className="rounded-full px-3 py-1 text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                  >
-                    Paused
-                  </Badge>
+                  <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
+                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                    Timer Paused
+                  </div>
                 ) : (
-                  <Badge
-                    variant="outline"
-                    className="rounded-full px-3 py-1 text-xs font-bold gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shadow-2xs"
-                  >
-                    <CircleDot className="h-2.5 w-2.5 animate-ping" />
+                  <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 bg-emerald-500/15 shadow-sm shadow-emerald-500/15">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
                     Active Focus
-                  </Badge>
+                  </div>
                 )}
               </div>
 
               {session.topic && (
-                <p className="text-xl font-bold text-foreground">
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
                   {session.topic}
-                </p>
+                </h2>
               )}
               {session.goal && (
-                <p className="text-sm text-muted-foreground">
-                  Goal: {session.goal}
+                <p className="text-sm sm:text-base text-muted-foreground font-medium">
+                  <span className="font-semibold text-foreground/80">Goal:</span> {session.goal}
                 </p>
               )}
             </div>
 
             {/* Digital Timer Display */}
-            <div className="py-3">
+            <div className="py-2 sm:py-4">
               <div
                 className={cn(
                   "text-7xl sm:text-8xl md:text-9xl font-mono font-black tracking-tight select-none transition-all duration-300 leading-none",
                   session.status === "active"
-                    ? "text-foreground drop-shadow-xs"
-                    : "text-muted-foreground opacity-70"
+                    ? "text-foreground drop-shadow-sm"
+                    : "text-muted-foreground opacity-60"
                 )}
               >
                 {formatTimerDisplay(displayElapsed)}
               </div>
-              <p className="text-xs uppercase font-bold tracking-widest text-muted-foreground/90 mt-3">
-                {session.status === "active" ? "Focused Time" : "Timer Paused"}
+              <p className="text-xs sm:text-sm uppercase font-extrabold tracking-widest text-muted-foreground/80 mt-4">
+                {session.status === "active" ? "Deep Focus in Progress" : "Timer Paused"}
               </p>
             </div>
 
             {/* Playful Pill Control Buttons */}
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-3.5 pt-2">
               {session.status === "active" ? (
                 <Button
                   variant="amber"
                   size="lg"
                   onClick={handlePause}
                   disabled={actionLoading}
-                  className="gap-2 px-7 shadow-md hover:scale-105 active:scale-95 transition-all"
+                  className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
                 >
-                  <Pause className="h-4 w-4" />
+                  <Pause className="h-5 w-5 fill-current" />
                   Pause
                 </Button>
               ) : (
@@ -307,9 +311,9 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   size="lg"
                   onClick={handleResume}
                   disabled={actionLoading}
-                  className="gap-2 px-7 shadow-md hover:scale-105 active:scale-95 transition-all"
+                  className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
                 >
-                  <Play className="h-4 w-4 fill-current" />
+                  <Play className="h-5 w-5 fill-current" />
                   Resume
                 </Button>
               )}
@@ -319,15 +323,15 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 size="lg"
                 onClick={() => setIsFinishing(true)}
                 disabled={actionLoading}
-                className="gap-2 px-7 shadow-md hover:scale-105 active:scale-95 transition-all"
+                className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
               >
-                <Square className="h-4 w-4 fill-current" />
+                <Square className="h-5 w-5 fill-current" />
                 Finish
               </Button>
             </div>
 
             {/* Shortcut hint */}
-            <p className="text-xs text-muted-foreground/80 font-medium">
+            <p className="text-xs sm:text-sm text-muted-foreground/80 font-medium">
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
                 Space
               </kbd>{" "}
@@ -362,7 +366,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             <div className="flex items-center gap-3">
               <span
                 className={cn(
-                  "px-4 py-1.5 rounded-full text-sm font-extrabold border shadow-2xs",
+                  "px-4 py-1.5 rounded-full text-sm font-black border shadow-2xs",
                   colorTheme.badge
                 )}
               >
@@ -370,20 +374,18 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               </span>
 
               {session.status === "paused" ? (
-                <Badge
-                  variant="secondary"
-                  className="rounded-full px-3 py-1 text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                >
-                  Paused
-                </Badge>
+                <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
+                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  Timer Paused
+                </div>
               ) : (
-                <Badge
-                  variant="outline"
-                  className="rounded-full px-3 py-1 text-xs font-bold gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shadow-2xs"
-                >
-                  <CircleDot className="h-2.5 w-2.5 animate-ping" />
+                <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 bg-emerald-500/15 shadow-sm shadow-emerald-500/15">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
                   Active Focus
-                </Badge>
+                </div>
               )}
             </div>
 
@@ -404,13 +406,13 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
           {/* Center Immersive Timer */}
           <div className="flex flex-col items-center justify-center text-center space-y-6 my-auto">
             {session.topic && (
-              <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-foreground max-w-2xl">
+              <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-foreground max-w-2xl">
                 {session.topic}
               </h2>
             )}
             {session.goal && (
               <p className="text-base sm:text-lg text-muted-foreground font-medium max-w-lg">
-                Goal: {session.goal}
+                <span className="font-semibold text-foreground/80">Goal:</span> {session.goal}
               </p>
             )}
 
@@ -442,7 +444,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   disabled={actionLoading}
                   className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
                 >
-                  <Pause className="h-5 w-5" />
+                  <Pause className="h-5 w-5 fill-current" />
                   Pause
                 </Button>
               ) : (
