@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TickTock
 
-## Getting Started
+A focused time-tracking app built with Next.js and Drizzle.
 
-First, run the development server:
+## Local development
+
+Copy `.env.example` to `.env.local` and provide a Turso database URL and token. Without those values, local development uses `sqlite.db` automatically.
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The repository includes `vercel.json`; Vercel installs dependencies with `npm ci` and deploys with `npm run build`.
 
-## Learn More
+Before the first deployment:
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a hosted [Turso](https://turso.tech/) database.
+2. Apply the tracked schema migration to it from a machine with the Turso credentials:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   ```bash
+   TURSO_DATABASE_URL="libsql://..." TURSO_AUTH_TOKEN="..." npm run db:push
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. Import the repository into Vercel.
+4. In **Project Settings → Environment Variables**, add `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for Production, Preview, and Development as appropriate. The expected names are listed in `.env.example`.
 
-## Deploy on Vercel
+Vercel functions do not provide persistent local disk storage. TickTock therefore requires a remote libSQL/Turso database in production and fails with a clear configuration error if one is absent.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To deploy from the CLI after authenticating:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npx vercel
+```
