@@ -93,17 +93,17 @@ export function FinishSessionModal({
             </DialogHeader>
 
             <div className="space-y-4 pt-1">
-              <div className="rounded-3xl bg-muted/50 border border-border/60 p-4 text-center">
-                <span className="text-3xl font-black tracking-tight text-foreground font-mono">
+              <div className="rounded-3xl bg-muted/50 border border-border/60 p-5 text-center">
+                <span className="text-4xl font-black tracking-tight text-foreground font-mono">
                   {formatDuration(durationSeconds)}
                 </span>
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">
                   total focused time
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-foreground">
+                <label className="text-sm font-semibold text-foreground">
                   What did you accomplish?{" "}
                   <span className="text-muted-foreground font-normal">
                     (optional)
@@ -120,7 +120,7 @@ export function FinishSessionModal({
                           setOutcome(isSelected ? null : opt.label)
                         }
                         className={cn(
-                          "text-xs font-semibold px-3 py-2 rounded-full border text-center transition-all duration-150 active:scale-95",
+                          "text-xs sm:text-sm font-semibold px-3 py-2 rounded-full border text-center transition-all duration-150 active:scale-95",
                           isSelected
                             ? opt.active + " shadow-xs"
                             : cn("border-border/70 bg-card text-muted-foreground hover:text-foreground", opt.color)
@@ -134,7 +134,7 @@ export function FinishSessionModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
+                <label className="text-sm font-semibold text-foreground">
                   Notes{" "}
                   <span className="text-muted-foreground font-normal">
                     (optional)
@@ -146,10 +146,11 @@ export function FinishSessionModal({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   disabled={isSubmitting}
+                  className="rounded-3xl text-sm"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2.5 pt-2">
                 <Button
                   type="button"
                   variant="ghost"
@@ -163,7 +164,7 @@ export function FinishSessionModal({
                   onClick={handleSave}
                   disabled={isSubmitting}
                   variant="sky"
-                  className="rounded-full px-6"
+                  className="rounded-full px-7 h-11 font-bold text-sm"
                 >
                   {isSubmitting ? "Saving..." : "Save Session"}
                 </Button>

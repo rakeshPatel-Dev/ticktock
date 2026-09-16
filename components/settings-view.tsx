@@ -63,23 +63,23 @@ export function SettingsView() {
       {/* General Preferences */}
       <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">General</CardTitle>
-          <CardDescription className="text-xs">
+          <CardTitle className="text-lg sm:text-xl font-bold">General</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground">
             Configure your personal tracking preferences.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Daily Goal */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-b border-border/40 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-b border-border/40 pb-4">
             <div className="space-y-0.5">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-base font-semibold text-foreground">
                 Daily Focus Goal
               </label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Target hours of focused study per day.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <Input
                 type="number"
                 min="0.5"
@@ -87,18 +87,18 @@ export function SettingsView() {
                 step="0.5"
                 value={dailyGoal}
                 onChange={(e) => setDailyGoal(e.target.value)}
-                className="w-20 font-mono text-center rounded-full"
+                className="w-24 font-mono text-center rounded-full text-base h-11"
               />
-              <span className="text-xs text-muted-foreground font-medium">hours</span>
+              <span className="text-sm font-semibold text-muted-foreground">hours</span>
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={handleSaveGoal}
-                className="gap-1.5 rounded-full"
+                className="gap-2 rounded-full font-semibold h-11 px-5"
               >
                 {savedGoal ? (
                   <>
-                    <Check className="h-3.5 w-3.5 text-emerald-500" />
+                    <Check className="h-4 w-4 text-emerald-500" />
                     Saved
                   </>
                 ) : (
@@ -109,12 +109,12 @@ export function SettingsView() {
           </div>
 
           {/* Theme */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
             <div className="space-y-0.5">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-base font-semibold text-foreground">
                 Appearance
               </label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Choose light, dark, or follow system theme.
               </p>
             </div>
@@ -123,25 +123,25 @@ export function SettingsView() {
                 variant={theme === "light" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("light")}
-                className="h-8 px-3 text-xs gap-1.5 rounded-full"
+                className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
               >
-                <Sun className="h-3.5 w-3.5 text-amber-500" /> Light
+                <Sun className="h-4 w-4 text-amber-500" /> Light
               </Button>
               <Button
                 variant={theme === "dark" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("dark")}
-                className="h-8 px-3 text-xs gap-1.5 rounded-full"
+                className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
               >
-                <Moon className="h-3.5 w-3.5 text-sky-500" /> Dark
+                <Moon className="h-4 w-4 text-sky-500" /> Dark
               </Button>
               <Button
                 variant={theme === "system" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("system")}
-                className="h-8 px-3 text-xs gap-1.5 rounded-full"
+                className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
               >
-                <Laptop className="h-3.5 w-3.5" /> System
+                <Laptop className="h-4 w-4" /> System
               </Button>
             </div>
           </div>
@@ -151,21 +151,21 @@ export function SettingsView() {
       {/* Data Export & Portability */}
       <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Data Export</CardTitle>
-          <CardDescription className="text-xs">
+          <CardTitle className="text-lg sm:text-xl font-bold">Data Export</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground">
             Your data belongs to you. Export your complete session logs anytime.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
             <a href="/api/export?format=json" download className="flex-1">
-              <Button variant="outline" className="w-full justify-center gap-2 text-xs rounded-full">
+              <Button variant="outline" className="w-full justify-center gap-2 text-sm font-semibold rounded-full h-11">
                 <FileJson className="h-4 w-4 text-sky-500" />
                 Export as JSON
               </Button>
             </a>
             <a href="/api/export?format=csv" download className="flex-1">
-              <Button variant="outline" className="w-full justify-center gap-2 text-xs rounded-full">
+              <Button variant="outline" className="w-full justify-center gap-2 text-sm font-semibold rounded-full h-11">
                 <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
                 Export as CSV
               </Button>
@@ -177,28 +177,28 @@ export function SettingsView() {
       {/* Danger Zone: Reset Data */}
       <Card className="border-destructive/30 bg-destructive/5 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
+          <CardTitle className="text-lg sm:text-xl font-bold text-destructive flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
             Danger Zone
           </CardTitle>
-          <CardDescription className="text-xs">
+          <CardDescription className="text-sm text-muted-foreground">
             Permanently clear all recorded sessions. This action cannot be undone.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {resetSuccess && (
-            <div className="mb-3 p-2.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-500/20 font-medium">
+            <div className="mb-3.5 p-3 text-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-500/20 font-medium">
               All session data has been completely erased.
             </div>
           )}
 
           <Button
             variant="destructive"
-            size="sm"
+            size="default"
             onClick={() => setIsResetDialogOpen(true)}
-            className="gap-2 text-xs rounded-full"
+            className="gap-2 text-sm font-semibold rounded-full h-11 px-5"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-4 w-4" />
             Clear all data
           </Button>
         </CardContent>

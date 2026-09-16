@@ -161,7 +161,7 @@ export function SessionListView({
         <div className="space-y-6">
           {groupKeys.map((groupLabel) => (
             <div key={groupLabel} className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pl-2">
+              <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground pl-2">
                 {groupLabel}
               </h4>
 
@@ -173,13 +173,13 @@ export function SessionListView({
                       key={session.id}
                       type="button"
                       onClick={() => setActiveDetailSession(session)}
-                      className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
+                      className="w-full text-left p-4 sm:px-6 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
                     >
                       <div className="space-y-1.5 min-w-0 pr-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                           <span
                             className={cn(
-                              "px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs",
+                              "px-3 py-0.5 rounded-full text-xs font-bold border shadow-2xs",
                               theme.badge
                             )}
                           >
@@ -187,23 +187,23 @@ export function SessionListView({
                           </span>
                           {session.topic && (
                             <>
-                              <span className="text-muted-foreground/60 text-xs">·</span>
-                              <span className="text-xs text-muted-foreground font-medium truncate">
+                              <span className="text-muted-foreground/50 text-xs">·</span>
+                              <span className="text-sm sm:text-base font-semibold text-foreground truncate">
                                 {session.topic}
                               </span>
                             </>
                           )}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
+                        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-muted-foreground font-medium">
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
                             {formatTime(session.startedAt)}
                           </span>
                           {session.outcome && (
                             <>
                               <span>•</span>
-                              <span className="px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-medium border border-border/60">
+                              <span className="px-2.5 py-0.5 rounded-full bg-muted text-foreground text-xs font-semibold border border-border/60">
                                 {session.outcome}
                               </span>
                             </>
@@ -211,7 +211,7 @@ export function SessionListView({
                           {session.notes && (
                             <>
                               <span>•</span>
-                              <span className="truncate max-w-[200px] text-muted-foreground/80 italic">
+                              <span className="truncate max-w-[260px] text-muted-foreground/85 italic font-normal">
                                 &ldquo;{session.notes}&rdquo;
                               </span>
                             </>
@@ -220,7 +220,7 @@ export function SessionListView({
                       </div>
 
                       <div className="flex items-center gap-2.5 shrink-0">
-                        <Badge variant="secondary" className="font-mono text-xs font-semibold rounded-full px-3 py-0.5">
+                        <Badge variant="secondary" className="font-mono text-sm font-bold rounded-full px-3.5 py-1">
                           {formatDuration(session.durationSeconds)}
                         </Badge>
                         <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
