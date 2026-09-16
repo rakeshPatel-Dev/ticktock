@@ -1,42 +1,37 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient, type Client } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 
-const dbPath = process.env.DATABASE_URL || "sqlite.db";
-
 const globalForDb = globalThis as unknown as {
-  sqlite: Database.Database | undefined;
+  client: Client | undefined;
 };
 
-export const sqlite = globalForDb.sqlite ?? new Database(dbPath);
+function getDbUrl(): string {
+  const rawUrl =
+    process.env.TURSO_DATABASE_URL ||
+    process.env.DATABASE_URL ||
+    "file:sqlite.db";
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.sqlite = sqlite;
+  if (
+    rawUrl.startsWith("libsql:") ||
+    rawUrl.startsWith("http:") ||
+    rawUrl.startsWith("https:") ||
+    rawUrl.startsWith("file:")
+  ) {
+    return rawUrl;
+  }
+  return `file:${rawUrl}`;
 }
 
-// Enable WAL mode for reliability and performance
-sqlite.pragma("journal_mode = WAL");
+export const client =
+  globalForDb.client ??
+  createClient({
+    url: getDbUrl(),
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
 
-// Ensure the schema exists automatically
-sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY,
-    subject TEXT NOT NULL,
-    topic TEXT,
-    started_at INTEGER NOT NULL,
-    ended_at INTEGER,
-    duration_seconds INTEGER NOT NULL DEFAULT 0,
-    paused_seconds INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active',
-    outcome TEXT,
-    goal TEXT,
-    notes TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS started_at_idx ON sessions (started_at);
-  CREATE INDEX IF NOT EXISTS status_idx ON sessions (status);
-  CREATE INDEX IF NOT EXISTS subject_idx ON sessions (subject);
-`);
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.client = client;
+}
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(client, { schema });
