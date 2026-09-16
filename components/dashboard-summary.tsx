@@ -47,81 +47,81 @@ export function DashboardSummaryView({
       <Card className="border-border/40 [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <CardTitle className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">
               Today&apos;s Goal
             </CardTitle>
-            <div className="text-2xl font-extrabold tracking-tight text-foreground mt-0.5">
+            <div className="text-3xl sm:text-4xl font-black tracking-tight text-foreground mt-1">
               {formatDuration(summary.totalFocusedSeconds)}{" "}
-              <span className="text-sm font-normal text-muted-foreground">
+              <span className="text-base sm:text-lg font-medium text-muted-foreground ml-2">
                 / {dailyGoalHours}h goal
               </span>
             </div>
           </div>
-          <span className="text-sm font-mono font-medium text-muted-foreground">
+          <span className="text-base sm:text-lg font-mono font-bold text-foreground">
             {progressPercent}%
           </span>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <Progress value={progressPercent} className="h-2" />
-          <p className="text-xs text-muted-foreground font-medium">
+        <CardContent className="space-y-2.5">
+          <Progress value={progressPercent} className="h-2.5" />
+          <p className="text-sm text-muted-foreground font-medium">
             {getGoalMessage()}
           </p>
         </CardContent>
       </Card>
 
       {/* Today's Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <Card className="border-border/40">
-          <CardContent className="p-4 space-y-1.5">
+          <CardContent className="p-5 sm:p-6 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground font-medium">Focused</span>
-              <div className="h-8 w-8 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center ring-1 ring-sky-500/20 shadow-sm shadow-sky-500/20">
-                <Clock className="h-3.5 w-3.5" />
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Focused</span>
+              <div className="h-9 w-9 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center ring-1 ring-sky-500/20 shadow-sm shadow-sky-500/20">
+                <Clock className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">
+            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
               {formatDuration(summary.totalFocusedSeconds)}
             </p>
           </CardContent>
         </Card>
 
         <Card className="border-border/40">
-          <CardContent className="p-4 space-y-1.5">
+          <CardContent className="p-5 sm:p-6 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground font-medium">Sessions</span>
-              <div className="h-8 w-8 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/20">
-                <CheckCircle className="h-3.5 w-3.5" />
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Sessions</span>
+              <div className="h-9 w-9 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/20">
+                <CheckCircle className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">
+            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
               {summary.sessionCount}
             </p>
           </CardContent>
         </Card>
 
         <Card className="border-border/40">
-          <CardContent className="p-4 space-y-1.5">
+          <CardContent className="p-5 sm:p-6 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground font-medium">Subjects</span>
-              <div className="h-8 w-8 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center ring-1 ring-orange-500/20 shadow-sm shadow-orange-500/20">
-                <BookOpen className="h-3.5 w-3.5" />
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Subjects</span>
+              <div className="h-9 w-9 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center ring-1 ring-orange-500/20 shadow-sm shadow-orange-500/20">
+                <BookOpen className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">
+            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
               {summary.subjectCount}
             </p>
           </CardContent>
         </Card>
 
         <Card className="border-border/40">
-          <CardContent className="p-4 space-y-1.5">
+          <CardContent className="p-5 sm:p-6 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground font-medium">Longest</span>
-              <div className="h-8 w-8 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center ring-1 ring-rose-500/20 shadow-sm shadow-rose-500/20">
-                <Flame className="h-3.5 w-3.5" />
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Longest</span>
+              <div className="h-9 w-9 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center ring-1 ring-rose-500/20 shadow-sm shadow-rose-500/20">
+                <Flame className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">
+            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
               {formatDuration(summary.longestSessionSeconds)}
             </p>
           </CardContent>
@@ -129,24 +129,24 @@ export function DashboardSummaryView({
       </div>
 
       {/* Recent Sessions List */}
-      <div className="space-y-3">
+      <div className="space-y-3.5">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-sm font-semibold text-foreground tracking-tight">
+          <h3 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">
             Recent Sessions
           </h3>
           {summary.recentSessions.length > 0 && (
             <Link
               href="/sessions"
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors font-medium"
+              className="text-sm font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
             >
-              View all <ChevronRight className="h-3 w-3" />
+              View all <ChevronRight className="h-4 w-4" />
             </Link>
           )}
         </div>
 
         {summary.recentSessions.length === 0 ? (
           <div className="rounded-4xl border border-dashed border-border/70 p-10 text-center space-y-2.5 bg-card/20">
-            <p className="text-base font-semibold text-foreground">
+            <p className="text-lg font-bold text-foreground">
               No sessions tracked yet today.
             </p>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
@@ -162,13 +162,13 @@ export function DashboardSummaryView({
                   key={session.id}
                   type="button"
                   onClick={() => setSelectedSession(session)}
-                  className="w-full text-left p-3.5 sm:px-5 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
+                  className="w-full text-left p-4 sm:px-6 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
                 >
-                  <div className="space-y-1 min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1.5 min-w-0 pr-3">
+                    <div className="flex items-center gap-2.5">
                       <span
                         className={cn(
-                          "px-2.5 py-0.5 rounded-full text-xs font-bold border",
+                          "px-3 py-0.5 rounded-full text-xs font-bold border shadow-2xs",
                           theme.badge
                         )}
                       >
@@ -176,21 +176,21 @@ export function DashboardSummaryView({
                       </span>
                       {session.topic && (
                         <>
-                          <span className="text-muted-foreground/60 text-xs">·</span>
-                          <span className="text-xs text-muted-foreground font-medium truncate">
+                          <span className="text-muted-foreground/50 text-xs">·</span>
+                          <span className="text-sm sm:text-base font-semibold text-foreground truncate">
                             {session.topic}
                           </span>
                         </>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground font-medium">
                       <span>{formatDateGroup(session.startedAt)}</span>
                       <span>•</span>
                       <span>{formatTime(session.startedAt)}</span>
                       {session.outcome && (
                         <>
                           <span>•</span>
-                          <span className="px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-medium border border-border/60">
+                          <span className="px-2.5 py-0.5 rounded-full bg-muted text-foreground text-xs font-semibold border border-border/60">
                             {session.outcome}
                           </span>
                         </>
@@ -198,8 +198,8 @@ export function DashboardSummaryView({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="secondary" className="font-mono text-xs font-semibold rounded-full px-3 py-0.5">
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <Badge variant="secondary" className="font-mono text-sm font-bold rounded-full px-3.5 py-1">
                       {formatDuration(session.durationSeconds)}
                     </Badge>
                     <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
