@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const subjects = await getAllSubjects();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-10 pb-12">
+    <div className="max-w-5xl mx-auto space-y-10 pb-12 w-full">
       {/* Active Timer or Idle Section */}
       <Timer initialSession={summary.activeSession} subjects={subjects} />
 

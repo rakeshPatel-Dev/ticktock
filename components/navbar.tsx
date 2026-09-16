@@ -32,7 +32,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-3 z-40 w-full px-4 mb-2">
-      <div className="container mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-5 rounded-full border border-border/80 bg-background/80 backdrop-blur-xl shadow-md">
+      <div className="container mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 rounded-full border border-border/80 bg-background/80 backdrop-blur-xl shadow-md">
         {/* Brand */}
         <div className="flex items-center gap-4 sm:gap-6">
           <Link
@@ -117,13 +117,21 @@ export function Navbar() {
                   </kbd>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground font-medium">
+                    Full page focus mode
+                  </span>
+                  <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
+                    M
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between py-1.5 border-b border-border/50">
                   <span className="text-muted-foreground font-medium">Finish session</span>
                   <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
                     F
                   </kbd>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground font-medium">Close modal</span>
+                  <span className="text-muted-foreground font-medium">Exit / Close modal</span>
                   <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
                     Esc
                   </kbd>

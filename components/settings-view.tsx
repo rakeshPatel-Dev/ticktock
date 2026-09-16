@@ -59,7 +59,7 @@ export function SettingsView() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div className="space-y-6 w-full pb-12">
       {/* General Preferences */}
       <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
