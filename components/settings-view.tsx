@@ -61,7 +61,7 @@ export function SettingsView() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
       {/* General Preferences */}
-      <Card className="border-border/60 bg-card/50">
+      <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">General</CardTitle>
           <CardDescription className="text-xs">
@@ -87,14 +87,14 @@ export function SettingsView() {
                 step="0.5"
                 value={dailyGoal}
                 onChange={(e) => setDailyGoal(e.target.value)}
-                className="w-20 font-mono text-center"
+                className="w-20 font-mono text-center rounded-full"
               />
-              <span className="text-xs text-muted-foreground">hours</span>
+              <span className="text-xs text-muted-foreground font-medium">hours</span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleSaveGoal}
-                className="gap-1.5"
+                className="gap-1.5 rounded-full"
               >
                 {savedGoal ? (
                   <>
@@ -118,28 +118,28 @@ export function SettingsView() {
                 Choose light, dark, or follow system theme.
               </p>
             </div>
-            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg border border-border/50">
+            <div className="flex items-center gap-1.5 bg-muted/60 p-1.5 rounded-full border border-border/50">
               <Button
                 variant={theme === "light" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("light")}
-                className="h-8 px-2.5 text-xs gap-1.5"
+                className="h-8 px-3 text-xs gap-1.5 rounded-full"
               >
-                <Sun className="h-3.5 w-3.5" /> Light
+                <Sun className="h-3.5 w-3.5 text-amber-500" /> Light
               </Button>
               <Button
                 variant={theme === "dark" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("dark")}
-                className="h-8 px-2.5 text-xs gap-1.5"
+                className="h-8 px-3 text-xs gap-1.5 rounded-full"
               >
-                <Moon className="h-3.5 w-3.5" /> Dark
+                <Moon className="h-3.5 w-3.5 text-sky-500" /> Dark
               </Button>
               <Button
                 variant={theme === "system" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("system")}
-                className="h-8 px-2.5 text-xs gap-1.5"
+                className="h-8 px-3 text-xs gap-1.5 rounded-full"
               >
                 <Laptop className="h-3.5 w-3.5" /> System
               </Button>
@@ -149,7 +149,7 @@ export function SettingsView() {
       </Card>
 
       {/* Data Export & Portability */}
-      <Card className="border-border/60 bg-card/50">
+      <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">Data Export</CardTitle>
           <CardDescription className="text-xs">
@@ -159,13 +159,13 @@ export function SettingsView() {
         <CardContent className="space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
             <a href="/api/export?format=json" download className="flex-1">
-              <Button variant="outline" className="w-full justify-center gap-2 text-xs">
-                <FileJson className="h-4 w-4 text-primary" />
+              <Button variant="outline" className="w-full justify-center gap-2 text-xs rounded-full">
+                <FileJson className="h-4 w-4 text-sky-500" />
                 Export as JSON
               </Button>
             </a>
             <a href="/api/export?format=csv" download className="flex-1">
-              <Button variant="outline" className="w-full justify-center gap-2 text-xs">
+              <Button variant="outline" className="w-full justify-center gap-2 text-xs rounded-full">
                 <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
                 Export as CSV
               </Button>
@@ -175,7 +175,7 @@ export function SettingsView() {
       </Card>
 
       {/* Danger Zone: Reset Data */}
-      <Card className="border-destructive/30 bg-destructive/5">
+      <Card className="border-destructive/30 bg-destructive/5 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold text-destructive flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
@@ -187,7 +187,7 @@ export function SettingsView() {
         </CardHeader>
         <CardContent>
           {resetSuccess && (
-            <div className="mb-3 p-2.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20">
+            <div className="mb-3 p-2.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-500/20 font-medium">
               All session data has been completely erased.
             </div>
           )}
@@ -196,7 +196,7 @@ export function SettingsView() {
             variant="destructive"
             size="sm"
             onClick={() => setIsResetDialogOpen(true)}
-            className="gap-2 text-xs"
+            className="gap-2 text-xs rounded-full"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Clear all data
@@ -206,7 +206,7 @@ export function SettingsView() {
 
       {/* Clear Data Confirmation Dialog */}
       <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-4xl">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-destructive flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
@@ -224,7 +224,7 @@ export function SettingsView() {
               value={resetConfirmText}
               onChange={(e) => setResetConfirmText(e.target.value)}
               placeholder="delete all"
-              className="font-mono text-sm"
+              className="font-mono text-sm rounded-full"
             />
 
             <div className="flex justify-end gap-2 pt-2">
@@ -236,6 +236,7 @@ export function SettingsView() {
                   setResetConfirmText("");
                 }}
                 disabled={isResetting}
+                className="rounded-full"
               >
                 Cancel
               </Button>
@@ -244,6 +245,7 @@ export function SettingsView() {
                 size="sm"
                 onClick={handleResetData}
                 disabled={resetConfirmText.toLowerCase() !== "delete all" || isResetting}
+                className="rounded-full"
               >
                 {isResetting ? "Clearing..." : "Permanently Delete"}
               </Button>
