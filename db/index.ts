@@ -9,9 +9,10 @@ const globalForDb = globalThis as unknown as {
 function getDbUrl(): string {
   const rawUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL;
 
-  // Vercel functions have an ephemeral, read-only deployment filesystem. A
-  // local SQLite database would therefore lose data between invocations.
-  const isProduction = process.env.VERCEL || process.env.NODE_ENV === "production";
+  // Treat everything that is not the dev server as production. Some hosts
+  // don't set NODE_ENV, so relying on `=== "production"` can silently route a
+  // deployed app to the local SQLite fallback and blow up with SQLITE_CANTOPEN.
+  const isProduction = process.env.NODE_ENV !== "development";
 
   if (!rawUrl) {
     if (isProduction) {
@@ -23,20 +24,26 @@ function getDbUrl(): string {
     return "file:sqlite.db";
   }
 
-  if (isProduction && (rawUrl === "sqlite.db" || rawUrl.startsWith("file:"))) {
-    throw new Error(
-      "A local SQLite database cannot be used in production. Set TURSO_DATABASE_URL to a remote libSQL/Turso database."
-    );
-  }
-
-  if (
+  const isRemoteUrl =
     rawUrl.startsWith("libsql:") ||
     rawUrl.startsWith("http:") ||
     rawUrl.startsWith("https:") ||
-    rawUrl.startsWith("file:")
-  ) {
+    rawUrl.startsWith("ws:") ||
+    rawUrl.startsWith("wss:");
+
+  // In production local disk is ephemeral and read-only. Reject any non-remote
+  // URL (file paths, bare `sqlite.db`, ...) up front with a clear message
+  // instead of a cryptic "unable to open database file" at connect time.
+  if (isProduction && !isRemoteUrl) {
+    throw new Error(
+      `A local SQLite database cannot be used in production (got "${rawUrl}"). Set TURSO_DATABASE_URL to a remote libSQL/Turso URL.`
+    );
+  }
+
+  if (isRemoteUrl) {
     return rawUrl;
   }
+
   return `file:${rawUrl}`;
 }
 
