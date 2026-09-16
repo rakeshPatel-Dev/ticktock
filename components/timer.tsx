@@ -45,10 +45,41 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
   // Sync with prop when server revalidates
   React.useEffect(() => {
     setSession(initialSession);
-    if (!initialSession) {
-      setIsFullScreen(false);
+    if (!initialSession && document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
     }
   }, [initialSession]);
+
+  // Enter / exit real browser fullscreen
+  const enterFullScreen = React.useCallback(() => {
+    if (!document.fullscreenElement) {
+      void document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+    }
+  }, []);
+
+  const exitFullScreen = React.useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  const toggleFullScreen = React.useCallback(() => {
+    if (document.fullscreenElement) {
+      exitFullScreen();
+    } else {
+      enterFullScreen();
+    }
+  }, [enterFullScreen, exitFullScreen]);
+
+  // Keep React state in sync with actual browser fullscreen state
+  // (handles Esc key natively managed by the browser)
+  React.useEffect(() => {
+    const onFsChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
 
   const handlePause = React.useCallback(async () => {
     if (!session || actionLoading) return;
@@ -115,18 +146,15 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
       if (e.key.toLowerCase() === "m" && session) {
         e.preventDefault();
-        setIsFullScreen((prev) => !prev);
+        toggleFullScreen();
       }
-
-      if (e.key === "Escape" && isFullScreen) {
-        e.preventDefault();
-        setIsFullScreen(false);
-      }
+      // Esc to exit fullscreen is handled natively by the browser;
+      // the fullscreenchange listener above keeps React state in sync.
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [session, isStarting, isFinishing, isFullScreen, handlePause, handleResume]);
+  }, [session, isStarting, isFinishing, handlePause, handleResume, toggleFullScreen]);
 
   const displayElapsed = session
     ? session.status === "active"
@@ -174,17 +202,17 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         </div>
       )}
 
-      {/* State: Running or Paused */}
-      {session && colorTheme && (
+      {/* State: Running or Paused (normal view) */}
+      {session && colorTheme && !isFullScreen && (
         <div className="rounded-4xl border border-border/80 bg-card/70 backdrop-blur-md p-8 sm:p-12 text-center shadow-xl relative">
           {/* Top Row: Fullscreen button */}
           <div className="absolute top-6 right-6 sm:top-8 sm:right-8">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsFullScreen(true)}
+              onClick={enterFullScreen}
               className="rounded-full gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
-              title="Full page focus mode (M)"
+              title="Full screen (M)"
             >
               <Maximize2 className="h-4 w-4" />
               <span className="hidden sm:inline font-semibold">Full Screen</span>
@@ -320,11 +348,11 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         </div>
       )}
 
-      {/* Full Page Immersive Focus Mode */}
-      {session && isFullScreen && colorTheme && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col justify-between p-6 sm:p-12 md:p-16 animate-in fade-in duration-200">
+      {/* Full Screen Immersive Mode — rendered inside the fullscreen element */}
+      {session && colorTheme && isFullScreen && (
+        <div className="fixed inset-0 z-50 bg-background flex flex-col justify-between p-6 sm:p-10 md:p-14 animate-in fade-in duration-200">
           {/* Top Bar */}
-          <div className="flex items-center justify-between w-full max-w-5xl mx-auto">
+          <div className="flex items-center justify-between w-full max-w-6xl mx-auto">
             <div className="flex items-center gap-3">
               <span
                 className={cn(
@@ -356,11 +384,11 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsFullScreen(false)}
+              onClick={exitFullScreen}
               className="rounded-full gap-2 text-xs font-semibold px-4 shadow-2xs"
             >
               <Minimize2 className="h-3.5 w-3.5" />
-              Exit Full Screen
+              Exit
               <kbd className="font-mono bg-muted/80 px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold">
                 Esc
               </kbd>
@@ -375,23 +403,25 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               </h2>
             )}
             {session.goal && (
-              <p className="text-sm sm:text-base text-muted-foreground font-medium max-w-lg">
+              <p className="text-base sm:text-lg text-muted-foreground font-medium max-w-lg">
                 Goal: {session.goal}
               </p>
             )}
 
-            <div className="py-4 select-none">
+            <div className="select-none">
               <div
                 className={cn(
-                  "text-7xl sm:text-9xl md:text-[11rem] font-mono font-black tracking-tight leading-none transition-all duration-300",
+                  "font-mono font-black tracking-tight leading-none transition-all duration-300",
+                  // Scales from large → massive as screen grows
+                  "text-[5rem] sm:text-[9rem] md:text-[14rem] lg:text-[18rem] xl:text-[20rem]",
                   session.status === "active"
-                    ? "text-foreground drop-shadow-sm"
-                    : "text-muted-foreground opacity-70"
+                    ? "text-foreground"
+                    : "text-muted-foreground opacity-60"
                 )}
               >
                 {formatTimerDisplay(displayElapsed)}
               </div>
-              <p className="text-sm sm:text-base uppercase font-bold tracking-widest text-muted-foreground/80 mt-4">
+              <p className="text-base sm:text-lg uppercase font-bold tracking-widest text-muted-foreground/70 mt-6">
                 {session.status === "active" ? "Deep Focus in Progress" : "Timer Paused"}
               </p>
             </div>
@@ -404,7 +434,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   size="lg"
                   onClick={handlePause}
                   disabled={actionLoading}
-                  className="gap-2.5 px-8 text-base shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
                 >
                   <Pause className="h-5 w-5" />
                   Pause
@@ -415,7 +445,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   size="lg"
                   onClick={handleResume}
                   disabled={actionLoading}
-                  className="gap-2.5 px-8 text-base shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
                 >
                   <Play className="h-5 w-5 fill-current" />
                   Resume
@@ -426,11 +456,11 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 variant="rose"
                 size="lg"
                 onClick={() => {
-                  setIsFullScreen(false);
+                  exitFullScreen();
                   setIsFinishing(true);
                 }}
                 disabled={actionLoading}
-                className="gap-2.5 px-8 text-base shadow-lg hover:scale-105 active:scale-95 transition-all"
+                className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
               >
                 <Square className="h-5 w-5 fill-current" />
                 Finish
@@ -439,7 +469,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
           </div>
 
           {/* Bottom Shortcut bar */}
-          <div className="text-center text-xs text-muted-foreground/80 font-medium">
+          <div className="text-center text-xs text-muted-foreground/70 font-medium max-w-6xl mx-auto">
             Press{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
               Space
@@ -450,14 +480,23 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
             </kbd>{" "}
             to finish ·{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-              M
+              Esc
             </kbd>{" "}
             or{" "}
             <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-              Esc
+              M
             </kbd>{" "}
             to exit
           </div>
+
+          {/* Finish Modal (must stay mounted so it can open) */}
+          <FinishSessionModal
+            sessionId={session.id}
+            durationSeconds={displayElapsed}
+            open={isFinishing}
+            onOpenChange={setIsFinishing}
+            onFinished={() => setSession(null)}
+          />
         </div>
       )}
     </div>
