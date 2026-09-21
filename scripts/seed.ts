@@ -1,10 +1,38 @@
+import "./_load-env";
+
 import { db } from "../db";
-import { sessions } from "../db/schema";
+import { sessions, user } from "../db/schema";
+import { eq } from "drizzle-orm";
+
+function getArg(name: string): string | undefined {
+  const idx = process.argv.indexOf(name);
+  return idx !== -1 ? process.argv[idx + 1] : undefined;
+}
 
 async function seed() {
-  console.log("Seeding realistic sample data for TickTock...");
+  const username = getArg("--user");
+  if (!username) {
+    console.error(
+      "Usage: npm run db:seed -- --user <username>\nCreate the account first via /signup, then pass its username."
+    );
+    process.exit(1);
+  }
 
-  await db.delete(sessions);
+  const users = await db
+    .select()
+    .from(user)
+    .where(eq(user.username, username))
+    .limit(1);
+
+  if (users.length === 0) {
+    console.error(`No account found with username "${username}". Sign up at /signup first.`);
+    process.exit(1);
+  }
+  const userId = users[0].id;
+
+  console.log(`Seeding realistic sample data for user "${users[0].username}"...`);
+
+  await db.delete(sessions).where(eq(sessions.userId, userId));
 
   const now = Math.floor(Date.now() / 1000);
   const oneDay = 86400;
@@ -102,7 +130,9 @@ async function seed() {
     },
   ];
 
-  await db.insert(sessions).values(sampleData);
+  await db.insert(sessions).values(
+    sampleData.map((s) => ({ ...s, userId }))
+  );
 
   console.log(`✓ Seeded ${sampleData.length} realistic sessions.`);
 }
