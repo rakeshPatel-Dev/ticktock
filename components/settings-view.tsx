@@ -22,8 +22,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { clearAllSessions } from "@/lib/actions";
+import { AccountCard } from "@/components/account-card";
 
-export function SettingsView() {
+export function SettingsView({ username }: { username: string }) {
   const { theme, setTheme } = useTheme();
   const [dailyGoal, setDailyGoal] = React.useState("4");
   const [savedGoal, setSavedGoal] = React.useState(false);
@@ -60,6 +61,9 @@ export function SettingsView() {
 
   return (
     <div className="space-y-6 w-full pb-12">
+      {/* Account */}
+      <AccountCard username={username} />
+
       {/* General Preferences */}
       <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
         <CardHeader className="pb-3">

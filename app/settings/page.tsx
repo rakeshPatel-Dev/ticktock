@@ -1,11 +1,16 @@
+import { requireUser } from "@/lib/session";
 import { SettingsView } from "@/components/settings-view";
+import type { auth } from "@/lib/auth";
 
 export const metadata = {
   title: "Settings - TickTock",
   description: "TickTock preferences and data management.",
 };
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const user = await requireUser();
+  const username = (user as typeof auth.$Infer.Session.user & { username?: string }).username ?? user.name;
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12 w-full">
       <div className="space-y-1">
@@ -13,11 +18,11 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="text-sm text-muted-foreground">
-          Manage your focus goals, theme, and data export.
+          Manage your account, focus goals, theme, and data export.
         </p>
       </div>
 
-      <SettingsView />
+      <SettingsView username={username} />
     </div>
   );
 }
