@@ -1,12 +1,14 @@
 import { getSessions, getAllSubjects } from "@/lib/queries";
+import { requireUser } from "@/lib/session";
 import { SessionListView } from "@/components/session-list";
 
 export const dynamic = "force-dynamic";
 
 export default async function SessionsPage() {
+  const user = await requireUser();
   const [sessionsList, subjects] = await Promise.all([
-    getSessions(),
-    getAllSubjects(),
+    getSessions(user.id),
+    getAllSubjects(user.id),
   ]);
 
   return (

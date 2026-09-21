@@ -3,15 +3,17 @@ import {
   getSubjectAnalytics,
   getTopicAnalytics,
 } from "@/lib/queries";
+import { requireUser } from "@/lib/session";
 import { AnalyticsView } from "@/components/analytics-view";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
+  const user = await requireUser();
   const [dailyMetrics, subjectMetrics, topicMetrics] = await Promise.all([
-    getDailyAnalytics(),
-    getSubjectAnalytics(),
-    getTopicAnalytics(),
+    getDailyAnalytics(user.id),
+    getSubjectAnalytics(user.id),
+    getTopicAnalytics(user.id),
   ]);
 
   const totalWeeklySeconds = dailyMetrics.reduce(

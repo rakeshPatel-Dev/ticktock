@@ -2,10 +2,11 @@
 
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { calculateDuration } from "./timer";
+import { getUserId } from "./session";
 
 function safeRevalidate(path: string) {
   try {
@@ -18,6 +19,8 @@ function safeRevalidate(path: string) {
 export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string };
+
+const UNAUTHORIZED = { success: false, error: "UNAUTHORIZED" } as const;
 
 const createSessionSchema = z.object({
   subject: z.string().trim().min(1, "Subject is required").max(100),
@@ -46,13 +49,21 @@ export async function createSession(
   input: z.infer<typeof createSessionSchema>
 ): Promise<ActionResult<{ id: string }>> {
   try {
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
     const validated = createSessionSchema.parse(input);
 
     // Concurrency invariant: verify no active or paused session exists
     const existingActive = await db
       .select({ id: sessions.id })
       .from(sessions)
-      .where(inArray(sessions.status, ["active", "paused"]))
+      .where(
+        and(
+          inArray(sessions.status, ["active", "paused"]),
+          eq(sessions.userId, userId)
+        )
+      )
       .limit(1);
 
     if (existingActive.length > 0) {
@@ -67,6 +78,7 @@ export async function createSession(
 
     await db.insert(sessions).values({
       id,
+      userId,
       subject: validated.subject,
       topic: validated.topic || null,
       goal: validated.goal || null,
@@ -97,10 +109,13 @@ export async function createSession(
  */
 export async function pauseSession(id: string): Promise<ActionResult> {
   try {
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
     const session = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, id))
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
       .limit(1);
 
     if (session.length === 0) {
@@ -119,7 +134,7 @@ export async function pauseSession(id: string): Promise<ActionResult> {
         status: "paused",
         updatedAt: now,
       })
-      .where(eq(sessions.id, id));
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
 
     safeRevalidate("/");
     return { success: true, data: undefined };
@@ -134,10 +149,13 @@ export async function pauseSession(id: string): Promise<ActionResult> {
  */
 export async function resumeSession(id: string): Promise<ActionResult> {
   try {
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
     const sessionList = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, id))
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
       .limit(1);
 
     if (sessionList.length === 0) {
@@ -161,7 +179,7 @@ export async function resumeSession(id: string): Promise<ActionResult> {
         pausedSeconds: totalPaused,
         updatedAt: now,
       })
-      .where(eq(sessions.id, id));
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
 
     safeRevalidate("/");
     return { success: true, data: undefined };
@@ -179,10 +197,13 @@ export async function finishSession(
   input?: z.infer<typeof finishSessionSchema>
 ): Promise<ActionResult> {
   try {
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
     const sessionList = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, id))
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
       .limit(1);
 
     if (sessionList.length === 0) {
@@ -215,7 +236,7 @@ export async function finishSession(
         notes: validated.notes || null,
         updatedAt: now,
       })
-      .where(eq(sessions.id, id));
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
@@ -238,6 +259,9 @@ export async function updateSession(
   input: z.infer<typeof updateSessionSchema>
 ): Promise<ActionResult> {
   try {
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
     const validated = updateSessionSchema.parse(input);
     const now = Math.floor(Date.now() / 1000);
 
@@ -252,7 +276,10 @@ export async function updateSession(
       updateData.outcome = validated.outcome || null;
     if (validated.notes !== undefined) updateData.notes = validated.notes || null;
 
-    await db.update(sessions).set(updateData).where(eq(sessions.id, id));
+    await db
+      .update(sessions)
+      .set(updateData)
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
@@ -272,7 +299,12 @@ export async function updateSession(
  */
 export async function deleteSession(id: string): Promise<ActionResult> {
   try {
-    await db.delete(sessions).where(eq(sessions.id, id));
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
+    await db
+      .delete(sessions)
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
@@ -289,7 +321,10 @@ export async function deleteSession(id: string): Promise<ActionResult> {
  */
 export async function clearAllSessions(): Promise<ActionResult> {
   try {
-    await db.delete(sessions);
+    const userId = await getUserId();
+    if (!userId) return UNAUTHORIZED;
+
+    await db.delete(sessions).where(eq(sessions.userId, userId));
 
     safeRevalidate("/");
     safeRevalidate("/sessions");

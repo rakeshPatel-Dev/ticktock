@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { sessions } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { formatDuration } from "@/lib/timer";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const format = searchParams.get("format") || "json";
 
   const allSessions = await db
     .select()
     .from(sessions)
+    .where(eq(sessions.userId, session.user.id))
     .orderBy(desc(sessions.startedAt));
 
   const dateStr = new Date().toISOString().split("T")[0];

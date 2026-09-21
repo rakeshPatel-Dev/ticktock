@@ -1,12 +1,14 @@
 import { getDashboardSummary, getAllSubjects } from "@/lib/queries";
+import { requireUser } from "@/lib/session";
 import { Timer } from "@/components/timer";
 import { DashboardSummaryView } from "@/components/dashboard-summary";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const summary = await getDashboardSummary();
-  const subjects = await getAllSubjects();
+  const user = await requireUser();
+  const summary = await getDashboardSummary(user.id);
+  const subjects = await getAllSubjects(user.id);
 
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-12 w-full">

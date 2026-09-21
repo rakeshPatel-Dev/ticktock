@@ -7,7 +7,7 @@ const globalForDb = globalThis as unknown as {
 };
 
 function getDbUrl(): string {
-  const rawUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL;
+  const rawUrl = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
 
   // Treat everything that is not the dev server as production. Some hosts
   // don't set NODE_ENV, so relying on `=== "production"` can silently route a

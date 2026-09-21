@@ -32,13 +32,20 @@ export interface TopicMetric {
 }
 
 /**
- * Returns the currently active or paused session, if any.
+ * Returns the currently active or paused session for a user, if any.
  */
-export async function getActiveSession(): Promise<StudySession | null> {
+export async function getActiveSession(
+  userId: string
+): Promise<StudySession | null> {
   const result = await db
     .select()
     .from(sessions)
-    .where(inArray(sessions.status, ["active", "paused"]))
+    .where(
+      and(
+        inArray(sessions.status, ["active", "paused"]),
+        eq(sessions.userId, userId)
+      )
+    )
     .orderBy(desc(sessions.startedAt))
     .limit(1);
 
@@ -46,29 +53,35 @@ export async function getActiveSession(): Promise<StudySession | null> {
 }
 
 /**
- * Returns a single session by its unique ID.
+ * Returns a single session by its unique ID (scoped to the user).
  */
-export async function getSessionById(id: string): Promise<StudySession | null> {
+export async function getSessionById(
+  userId: string,
+  id: string
+): Promise<StudySession | null> {
   const result = await db
     .select()
     .from(sessions)
-    .where(eq(sessions.id, id))
+    .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
     .limit(1);
 
   return result[0] ?? null;
 }
 
 /**
- * Returns filtered historical sessions.
+ * Returns filtered historical sessions for a user.
  */
-export async function getSessions(options?: {
-  from?: Date;
-  to?: Date;
-  subject?: string;
-  search?: string;
-  limit?: number;
-}): Promise<StudySession[]> {
-  const conditions = [];
+export async function getSessions(
+  userId: string,
+  options?: {
+    from?: Date;
+    to?: Date;
+    subject?: string;
+    search?: string;
+    limit?: number;
+  }
+): Promise<StudySession[]> {
+  const conditions = [eq(sessions.userId, userId)];
 
   if (options?.from) {
     const fromTimestamp = Math.floor(options.from.getTime() / 1000);
@@ -86,14 +99,15 @@ export async function getSessions(options?: {
 
   if (options?.search && options.search.trim()) {
     const term = `%${options.search.trim()}%`;
-    conditions.push(
-      or(
-        like(sessions.subject, term),
-        like(sessions.topic, term),
-        like(sessions.notes, term),
-        like(sessions.goal, term)
-      )
+    const searchCond = or(
+      like(sessions.subject, term),
+      like(sessions.topic, term),
+      like(sessions.notes, term),
+      like(sessions.goal, term)
     );
+    if (searchCond) {
+      conditions.push(searchCond);
+    }
   }
 
   const query = db
@@ -110,12 +124,13 @@ export async function getSessions(options?: {
 }
 
 /**
- * Returns all distinct subject names ever tracked.
+ * Returns all distinct subject names ever tracked by a user.
  */
-export async function getAllSubjects(): Promise<string[]> {
+export async function getAllSubjects(userId: string): Promise<string[]> {
   const allSessions = await db
     .select({ subject: sessions.subject })
     .from(sessions)
+    .where(eq(sessions.userId, userId))
     .orderBy(desc(sessions.startedAt));
 
   const unique = Array.from(new Set(allSessions.map((s) => s.subject.trim())));
@@ -126,6 +141,7 @@ export async function getAllSubjects(): Promise<string[]> {
  * Computes the dashboard summary for today.
  */
 export async function getDashboardSummary(
+  userId: string,
   targetDate: Date = new Date()
 ): Promise<DashboardSummary> {
   const startOfDay = new Date(targetDate);
@@ -142,11 +158,12 @@ export async function getDashboardSummary(
     .where(
       and(
         gte(sessions.startedAt, startTimestamp),
-        lte(sessions.startedAt, endTimestamp)
+        lte(sessions.startedAt, endTimestamp),
+        eq(sessions.userId, userId)
       )
     );
 
-  const activeSession = await getActiveSession();
+  const activeSession = await getActiveSession(userId);
 
   let totalFocusedSeconds = 0;
   let longestSessionSeconds = 0;
@@ -168,7 +185,9 @@ export async function getDashboardSummary(
   const recentSessions = await db
     .select()
     .from(sessions)
-    .where(eq(sessions.status, "completed"))
+    .where(
+      and(eq(sessions.status, "completed"), eq(sessions.userId, userId))
+    )
     .orderBy(desc(sessions.startedAt))
     .limit(10);
 
@@ -186,6 +205,7 @@ export async function getDashboardSummary(
  * Returns daily activity breakdown for the current week (Monday through Sunday).
  */
 export async function getDailyAnalytics(
+  userId: string,
   targetDate: Date = new Date()
 ): Promise<DailyMetric[]> {
   const curr = new Date(targetDate);
@@ -210,7 +230,8 @@ export async function getDailyAnalytics(
       and(
         gte(sessions.startedAt, fromTimestamp),
         lte(sessions.startedAt, toTimestamp),
-        eq(sessions.status, "completed")
+        eq(sessions.status, "completed"),
+        eq(sessions.userId, userId)
       )
     );
 
@@ -250,11 +271,15 @@ export async function getDailyAnalytics(
 /**
  * Returns focus time grouped by subject.
  */
-export async function getSubjectAnalytics(): Promise<SubjectMetric[]> {
+export async function getSubjectAnalytics(
+  userId: string
+): Promise<SubjectMetric[]> {
   const completedSessions = await db
     .select()
     .from(sessions)
-    .where(eq(sessions.status, "completed"));
+    .where(
+      and(eq(sessions.status, "completed"), eq(sessions.userId, userId))
+    );
 
   const map = new Map<string, { duration: number; count: number }>();
   let totalAllDuration = 0;
@@ -286,11 +311,15 @@ export async function getSubjectAnalytics(): Promise<SubjectMetric[]> {
 /**
  * Returns focus time grouped by topic under subjects.
  */
-export async function getTopicAnalytics(): Promise<TopicMetric[]> {
+export async function getTopicAnalytics(
+  userId: string
+): Promise<TopicMetric[]> {
   const completedSessions = await db
     .select()
     .from(sessions)
-    .where(eq(sessions.status, "completed"));
+    .where(
+      and(eq(sessions.status, "completed"), eq(sessions.userId, userId))
+    );
 
   const map = new Map<string, { subject: string; topic: string; duration: number }>();
 
