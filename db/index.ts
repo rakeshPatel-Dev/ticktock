@@ -1,61 +1,54 @@
-import { createClient, type Client } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
-import * as schema from "./schema";
+import { MongoClient, type Collection, type Db } from "mongodb";
+import type { StudySessionDoc, UserDoc } from "./schema";
 
 const globalForDb = globalThis as unknown as {
-  client: Client | undefined;
+  mongoClient: MongoClient | undefined;
 };
 
-function getDbUrl(): string {
-  const rawUrl = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
+/** Strips credentials out of a connection string before it reaches a log. */
+function redactUri(uri: string): string {
+  return uri.replace(/\/\/[^@/]*@/, "//<credentials>@");
+}
 
-  // Treat everything that is not the dev server as production. Some hosts
-  // don't set NODE_ENV, so relying on `=== "production"` can silently route a
-  // deployed app to the local SQLite fallback and blow up with SQLITE_CANTOPEN.
+function getMongoUri(): string {
+  const uri = process.env.MONGODB_URI;
+
+  // Treat everything that is not the dev server as production. Some hosts don't
+  // set NODE_ENV, so relying on `=== "production"` can silently route a deployed
+  // app at the local fallback.
   const isProduction = process.env.NODE_ENV !== "development";
 
-  if (!rawUrl) {
+  if (!uri) {
     if (isProduction) {
       throw new Error(
-        "A remote database is required in production. Set TURSO_DATABASE_URL (and TURSO_AUTH_TOKEN when applicable)."
+        "MONGODB_URI is required in production. Set it to a mongodb:// or mongodb+srv:// connection string."
       );
     }
 
-    return "file:sqlite.db";
+    return "mongodb://127.0.0.1:27017";
   }
 
-  const isRemoteUrl =
-    rawUrl.startsWith("libsql:") ||
-    rawUrl.startsWith("http:") ||
-    rawUrl.startsWith("https:") ||
-    rawUrl.startsWith("ws:") ||
-    rawUrl.startsWith("wss:");
-
-  // In production local disk is ephemeral and read-only. Reject any non-remote
-  // URL (file paths, bare `sqlite.db`, ...) up front with a clear message
-  // instead of a cryptic "unable to open database file" at connect time.
-  if (isProduction && !isRemoteUrl) {
+  if (!uri.startsWith("mongodb://") && !uri.startsWith("mongodb+srv://")) {
     throw new Error(
-      `A local SQLite database cannot be used in production (got "${rawUrl}"). Set TURSO_DATABASE_URL to a remote libSQL/Turso URL.`
+      `MONGODB_URI must be a mongodb:// or mongodb+srv:// connection string (got "${redactUri(uri)}").`
     );
   }
 
-  if (isRemoteUrl) {
-    return rawUrl;
-  }
-
-  return `file:${rawUrl}`;
+  return uri;
 }
 
 export const client =
-  globalForDb.client ??
-  createClient({
-    url: getDbUrl(),
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
+  globalForDb.mongoClient ?? new MongoClient(getMongoUri());
 
 if (process.env.NODE_ENV !== "production") {
-  globalForDb.client = client;
+  globalForDb.mongoClient = client;
 }
 
-export const db = drizzle(client, { schema });
+export const db: Db = client.db();
+
+/** The `sessions` SQL table, renamed to avoid colliding with Better Auth's `session`. */
+export const studySessions: Collection<StudySessionDoc> =
+  db.collection<StudySessionDoc>("studySessions");
+
+/** Read-only convenience accessor. Writes to this collection go through Better Auth. */
+export const users: Collection<UserDoc> = db.collection<UserDoc>("user");
