@@ -4,6 +4,8 @@
  * Palette: sky (light blue accent), orange, rose, pink, red, emerald, amber.
  */
 
+import { subjectKey } from "@/lib/subjects";
+
 export interface ColorTheme {
   name: string;
   badge: string;
@@ -82,12 +84,17 @@ export const PLAYFUL_THEMES: ColorTheme[] = [
 
 /**
  * Returns a cheerful deterministic theme based on string value.
+ *
+ * Hashed from the case-insensitive subject key, not the raw string: subjects
+ * are stored with the user's own casing, so "Python" and "python" are the same
+ * subject and must not come back as two different colours in one list.
  */
 export function getSubjectColor(subject: string): ColorTheme {
   if (!subject) return PLAYFUL_THEMES[0];
+  const value = subjectKey(subject);
   let hash = 0;
-  for (let i = 0; i < subject.length; i++) {
-    hash = subject.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < value.length; i++) {
+    hash = value.charCodeAt(i) + ((hash << 5) - hash);
   }
   const index = Math.abs(hash) % PLAYFUL_THEMES.length;
   return PLAYFUL_THEMES[index];

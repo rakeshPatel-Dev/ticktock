@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
+import { isSameSubject } from "@/lib/subjects";
 import { cn } from "@/lib/utils";
 import { SessionDetailModal } from "./session-detail-modal";
 
@@ -37,8 +38,11 @@ export function SessionListView({
       // Exclude running sessions if any
       if (session.status !== "completed") return false;
 
-      // Subject filter
-      if (selectedSubject !== "all" && session.subject !== selectedSubject) {
+      // Subject filter. Compared through the shared subject key, not `===`:
+      // the dropdown shows one spelling per subject while individual rows keep
+      // whatever the user typed that day, so an exact match drops sessions the
+      // moment the casing differs.
+      if (selectedSubject !== "all" && !isSameSubject(session.subject, selectedSubject)) {
         return false;
       }
 
