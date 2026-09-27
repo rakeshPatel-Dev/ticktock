@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { finishSession } from "@/lib/actions";
+import { describeActionError } from "@/lib/action-errors";
 import { formatDuration } from "@/lib/timer";
 import { cn } from "@/lib/utils";
 
@@ -42,9 +43,17 @@ export function FinishSessionModal({
   const [notes, setNotes] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [celebrating, setCelebrating] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // A failure belongs to one attempt, not to the next time this opens.
+  React.useEffect(() => {
+    if (open) setError(null);
+  }, [open, sessionId]);
 
   const handleSave = async () => {
     setIsSubmitting(true);
+    setError(null);
+
     const res = await finishSession(sessionId, {
       outcome: outcome || undefined,
       notes: notes.trim() || undefined,
@@ -52,16 +61,28 @@ export function FinishSessionModal({
 
     setIsSubmitting(false);
 
-    if (res.success) {
-      setCelebrating(true);
-      setTimeout(() => {
-        onOpenChange(false);
-        onFinished?.();
-        setOutcome(null);
-        setNotes("");
-        setCelebrating(false);
-      }, 1200);
+    // The failure branch is the point: without it the button simply stopped
+    // spinning and the modal sat there, leaving no way to tell whether the
+    // session had been saved. The notes stay in the form so a retry is one
+    // click rather than retyping.
+    if (!res.success) {
+      setError(
+        describeActionError(
+          res.error,
+          "Could not finish this session. Your outcome and notes were not saved."
+        )
+      );
+      return;
     }
+
+    setCelebrating(true);
+    setTimeout(() => {
+      onOpenChange(false);
+      onFinished?.();
+      setOutcome(null);
+      setNotes("");
+      setCelebrating(false);
+    }, 1200);
   };
 
   return (
@@ -93,6 +114,15 @@ export function FinishSessionModal({
             </DialogHeader>
 
             <div className="space-y-4 pt-1">
+              {error && (
+                <p
+                  role="alert"
+                  className="p-3 text-xs rounded-2xl bg-destructive/10 text-destructive border border-destructive/25 leading-relaxed font-medium"
+                >
+                  {error}
+                </p>
+              )}
+
               <div className="rounded-3xl bg-muted/50 border border-border/60 p-5 text-center">
                 <span className="text-4xl font-black tracking-tight text-foreground font-mono">
                   {formatDuration(durationSeconds)}

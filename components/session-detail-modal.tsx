@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateSession, deleteSession } from "@/lib/actions";
+import { describeActionError } from "@/lib/action-errors";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function SessionDetailModal({
   const [isEditing, setIsEditing] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   // Edit fields
   const [subject, setSubject] = React.useState("");
@@ -52,31 +54,58 @@ export function SessionDetailModal({
       setNotes(session.notes || "");
       setIsEditing(false);
       setIsDeleting(false);
+      setError(null);
     }
   }, [session, open]);
 
   if (!session) return null;
 
+  // Both of these used to close the modal unconditionally, discarding the
+  // ActionResult: a save or a delete that the server refused looked exactly
+  // like one that worked, and the user was left believing their change was
+  // saved. The modal now stays open and says what happened.
   const handleUpdate = async () => {
-    if (!subject.trim()) return;
+    if (!subject.trim()) {
+      setError("Subject cannot be empty.");
+      return;
+    }
     setIsSubmitting(true);
+    setError(null);
+
     // User cannot update duration of finished session
-    await updateSession(session.id, {
+    const res = await updateSession(session.id, {
       subject: subject.trim(),
       topic: topic.trim() || undefined,
       goal: goal.trim() || undefined,
       outcome: outcome.trim() || undefined,
       notes: notes.trim() || undefined,
     });
+
     setIsSubmitting(false);
+
+    if (!res.success) {
+      setError(describeActionError(res.error, "Changes were not saved."));
+      return;
+    }
+
     setIsEditing(false);
     onOpenChange(false);
   };
 
   const handleDelete = async () => {
     setIsSubmitting(true);
-    await deleteSession(session.id);
+    setError(null);
+
+    const res = await deleteSession(session.id);
+
     setIsSubmitting(false);
+
+    if (!res.success) {
+      setIsDeleting(false);
+      setError(describeActionError(res.error, "The session was not deleted."));
+      return;
+    }
+
     setIsDeleting(false);
     onOpenChange(false);
     onDeleted?.();
@@ -95,6 +124,15 @@ export function SessionDetailModal({
             </Badge>
           </DialogTitle>
         </DialogHeader>
+
+        {error && (
+          <p
+            role="alert"
+            className="p-3 text-xs rounded-2xl bg-destructive/10 text-destructive border border-destructive/25 leading-relaxed font-medium"
+          >
+            {error}
+          </p>
+        )}
 
         {isDeleting ? (
           <div className="py-4 space-y-4 text-center">

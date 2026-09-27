@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { createSession } from "@/lib/actions";
+import { describeActionError } from "@/lib/action-errors";
 import { getSubjectColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
@@ -69,13 +70,9 @@ export function StartSessionModal({
     if (res.success) {
       setOpen(false);
     } else {
-      if (res.error === "ACTIVE_SESSION_EXISTS") {
-        setError(
-          "You already have a session active or paused. Finish or resume it before starting a new one."
-        );
-      } else {
-        setError(res.error || "Failed to start session");
-      }
+      setError(
+        describeActionError(res.error, "Failed to start session")
+      );
     }
   };
 
