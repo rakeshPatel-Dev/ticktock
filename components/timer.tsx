@@ -10,6 +10,7 @@ import { formatTimerDisplay } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
 import {
   getShortcut,
+  isEditableTarget,
   matchesShortcut,
   shortcutHintClass,
   shortcutKbdClass,
@@ -188,15 +189,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
   // Global Keyboard Shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
+      if (isEditableTarget(e)) return;
 
       if (matchesShortcut(pauseResumeShortcut, e) && session) {
         e.preventDefault();

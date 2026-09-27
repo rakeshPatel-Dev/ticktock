@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -10,10 +11,10 @@ import {
   Settings,
   HelpCircle,
 } from "lucide-react";
-import { ThemeToggle } from "./theme-toggle";
+import { ThemeToggle, useThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { SHORTCUTS } from "@/lib/shortcuts";
+import { SHORTCUTS, getShortcut, isEditableTarget, matchesShortcut } from "@/lib/shortcuts";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +32,34 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const { toggleTheme } = useThemeToggle();
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
 
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
+
+  // App-level bindings, so the theme shortcut and the help dialog work on every
+  // page rather than only where the timer happens to be mounted. The timer owns
+  // its own listener for the session keys; the two never match the same key.
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (isEditableTarget(e)) return;
+
+      if (matchesShortcut(getShortcut("toggleTheme"), e)) {
+        e.preventDefault();
+        toggleTheme();
+        return;
+      }
+
+      if (matchesShortcut(getShortcut("showShortcuts"), e)) {
+        e.preventDefault();
+        setShortcutsOpen((open) => !open);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleTheme]);
+
   if (isAuthRoute) return null;
 
   return (
@@ -83,7 +110,7 @@ export function Navbar() {
         {/* Right side: Shortcut help & Theme toggle */}
         <div className="flex items-center gap-2">
           {/* Shortcuts Dialog */}
-          <Dialog>
+          <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
             <DialogTrigger
               render={
                 <Button

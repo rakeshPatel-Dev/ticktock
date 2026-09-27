@@ -14,6 +14,8 @@ export type ShortcutId =
   | "pauseResume"
   | "finish"
   | "toggleFullScreen"
+  | "toggleTheme"
+  | "showShortcuts"
   | "exitFullScreen";
 
 export interface Shortcut {
@@ -44,6 +46,18 @@ export const SHORTCUTS: Shortcut[] = [
   },
   { id: "finish", key: "f", label: "F", action: "Finish session" },
   {
+    id: "toggleTheme",
+    key: "t",
+    label: "T",
+    action: "Toggle light / dark theme",
+  },
+  {
+    id: "showShortcuts",
+    key: "?",
+    label: "?",
+    action: "Show this dialog",
+  },
+  {
     id: "exitFullScreen",
     key: "Escape",
     label: "Esc",
@@ -63,6 +77,33 @@ export function matchesShortcut(shortcut: Shortcut, event: KeyboardEvent): boole
     return event.key.toLowerCase() === shownKey;
   }
   return event.key.toLowerCase() === shownKey;
+}
+
+/**
+ * True when the keystroke belongs to something the user is typing into or
+ * navigating with, so no shortcut fires behind an open form.
+ *
+ * The app-level bindings (navbar) and the timer bindings both check this, which
+ * is why it lives here rather than being inlined in either handler. The role
+ * checks are not decoration: Base UI renders its select listbox in a portal, so
+ * an option is not an <option> inside a <select> and is not INPUT or TEXTAREA.
+ * Without them, typing "t" to jump to an option named "Time" would also toggle
+ * the theme.
+ */
+export function isEditableTarget(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  if (!target || typeof target.closest !== "function") return false;
+
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    Boolean(
+      target.closest(
+        '[contenteditable="true"], [role="listbox"], [role="option"], [role="combobox"], [role="textbox"]',
+      ),
+    )
+  );
 }
 
 /** Visibility class for a hint paragraph containing the given shortcuts. */
