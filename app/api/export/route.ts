@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/db";
-import { sessions } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { studySessions } from "@/db";
+import { toStudySession } from "@/db/schema";
 import { formatDuration } from "@/lib/timer";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +14,6 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const format = searchParams.get("format") || "json";
-
-  const allSessions = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.userId, session.user.id))
-    .orderBy(desc(sessions.startedAt));
 
   const dateStr = new Date().toISOString().split("T")[0];
 
@@ -49,25 +42,34 @@ export async function GET(req: NextRequest) {
       return str;
     };
 
-    const rows = allSessions.map((s) => [
-      new Date(s.startedAt * 1000).toISOString().split("T")[0],
-      new Date(s.startedAt * 1000).toISOString(),
-      s.endedAt ? new Date(s.endedAt * 1000).toISOString() : "",
-      escapeCsv(s.subject),
-      escapeCsv(s.topic),
-      s.durationSeconds,
-      escapeCsv(formatDuration(s.durationSeconds)),
-      s.pausedSeconds,
-      s.status,
-      escapeCsv(s.outcome),
-      escapeCsv(s.goal),
-      escapeCsv(s.notes),
-    ]);
+    // Streamed through a cursor and serialized row-by-row: the previous version
+    // materialized the entire history, then a second array of row arrays, then
+    // the joined string — three copies in memory at once.
+    const lines: string[] = [headers.join(",")];
+    const cursor = studySessions
+      .find({ userId: session.user.id })
+      .sort({ startedAt: -1 });
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((r) => r.join(",")),
-    ].join("\n");
+    for await (const doc of cursor) {
+      const s = toStudySession(doc);
+      const row = [
+        new Date(s.startedAt * 1000).toISOString().split("T")[0],
+        new Date(s.startedAt * 1000).toISOString(),
+        s.endedAt ? new Date(s.endedAt * 1000).toISOString() : "",
+        escapeCsv(s.subject),
+        escapeCsv(s.topic),
+        s.durationSeconds,
+        escapeCsv(formatDuration(s.durationSeconds)),
+        s.pausedSeconds,
+        s.status,
+        escapeCsv(s.outcome),
+        escapeCsv(s.goal),
+        escapeCsv(s.notes),
+      ];
+      lines.push(row.join(","));
+    }
+
+    const csvContent = lines.join("\n");
 
     return new NextResponse(csvContent, {
       headers: {
@@ -78,6 +80,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Default JSON export
+  const allSessions = (
+    await studySessions
+      .find({ userId: session.user.id })
+      .sort({ startedAt: -1 })
+      .toArray()
+  ).map(toStudySession);
+
   const exportData = {
     appName: "TickTock",
     exportedAt: new Date().toISOString(),
