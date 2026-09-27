@@ -1,12 +1,19 @@
 "use server";
 
-import { db } from "@/db";
-import { sessions } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { MongoServerError } from "mongodb";
+import { studySessions } from "@/db";
+import {
+  fromStudySession,
+  pauseAnchorSeconds,
+  toStudySession,
+  toUpdateDoc,
+  type NewStudySession,
+} from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { calculateDuration } from "./timer";
 import { getUserId } from "./session";
+import { normalizeSubject } from "./subjects";
 
 function safeRevalidate(path: string) {
   try {
@@ -22,8 +29,24 @@ export type ActionResult<T = unknown> =
 
 const UNAUTHORIZED = { success: false, error: "UNAUTHORIZED" } as const;
 
+/** Duplicate key — the active_session_uniq partial unique index firing. */
+function isDuplicateKeyError(err: unknown): boolean {
+  return err instanceof MongoServerError && err.code === 11000;
+}
+
+// `.trim()` is zod's own transform, so a whitespace-only subject still fails
+// `.min(1)`. The extra `normalizeSubject` collapses internal whitespace runs:
+// without it a pasted "Data  Structures" and a typed "Data Structures" are two
+// subjects, and the subject filter and analytics rows fork with them.
+const subjectField = z
+  .string()
+  .trim()
+  .min(1, "Subject is required")
+  .max(100)
+  .transform(normalizeSubject);
+
 const createSessionSchema = z.object({
-  subject: z.string().trim().min(1, "Subject is required").max(100),
+  subject: subjectField,
   topic: z.string().trim().max(200).optional(),
   goal: z.string().trim().max(300).optional(),
 });
@@ -34,7 +57,7 @@ const finishSessionSchema = z.object({
 });
 
 const updateSessionSchema = z.object({
-  subject: z.string().trim().min(1).max(100).optional(),
+  subject: subjectField.optional(),
   topic: z.string().trim().max(200).optional(),
   goal: z.string().trim().max(300).optional(),
   outcome: z.string().trim().max(200).optional(),
@@ -54,19 +77,16 @@ export async function createSession(
 
     const validated = createSessionSchema.parse(input);
 
-    // Concurrency invariant: verify no active or paused session exists
-    const existingActive = await db
-      .select({ id: sessions.id })
-      .from(sessions)
-      .where(
-        and(
-          inArray(sessions.status, ["active", "paused"]),
-          eq(sessions.userId, userId)
-        )
-      )
-      .limit(1);
+    // Fast path: the happy case never touches the index twice. The
+    // active_session_uniq partial unique index is what actually enforces the
+    // invariant — this SELECT is only there to return a clean error code
+    // instead of surfacing E11000 on every request.
+    const existingActive = await studySessions.findOne(
+      { userId, status: { $in: ["active", "paused"] } },
+      { projection: { _id: 1 } }
+    );
 
-    if (existingActive.length > 0) {
+    if (existingActive) {
       return {
         success: false,
         error: "ACTIVE_SESSION_EXISTS",
@@ -76,26 +96,33 @@ export async function createSession(
     const now = Math.floor(Date.now() / 1000);
     const id = crypto.randomUUID();
 
-    await db.insert(sessions).values({
-      id,
-      userId,
-      subject: validated.subject,
-      topic: validated.topic || null,
-      goal: validated.goal || null,
-      startedAt: now,
-      endedAt: null,
-      durationSeconds: 0,
-      pausedSeconds: 0,
-      status: "active",
-      outcome: null,
-      notes: null,
-      createdAt: now,
-      updatedAt: now,
-    });
+    await studySessions.insertOne(
+      fromStudySession({
+        id,
+        userId,
+        subject: validated.subject,
+        topic: validated.topic || null,
+        goal: validated.goal || null,
+        startedAt: now,
+        endedAt: null,
+        durationSeconds: 0,
+        pausedSeconds: 0,
+        status: "active",
+        pausedAt: null,
+        outcome: null,
+        notes: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
 
     safeRevalidate("/");
     return { success: true, data: { id } };
   } catch (err: unknown) {
+    // Lost the check-then-act race: the index rejected the second insert.
+    if (isDuplicateKeyError(err)) {
+      return { success: false, error: "ACTIVE_SESSION_EXISTS" };
+    }
     if (err instanceof z.ZodError) {
       return { success: false, error: err.issues[0]?.message || "Invalid input" };
     }
@@ -112,29 +139,32 @@ export async function pauseSession(id: string): Promise<ActionResult> {
     const userId = await getUserId();
     if (!userId) return UNAUTHORIZED;
 
-    const session = await db
-      .select()
-      .from(sessions)
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
-      .limit(1);
+    const doc = await studySessions.findOne({ _id: id, userId });
 
-    if (session.length === 0) {
+    if (!doc) {
       return { success: false, error: "SESSION_NOT_FOUND" };
     }
 
-    if (session[0].status !== "active") {
+    const session = toStudySession(doc);
+
+    if (session.status !== "active") {
       return { success: false, error: "INVALID_SESSION_STATE" };
     }
 
     const now = Math.floor(Date.now() / 1000);
 
-    await db
-      .update(sessions)
-      .set({
-        status: "paused",
-        updatedAt: now,
-      })
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
+    await studySessions.updateOne(
+      { _id: id, userId },
+      {
+        $set: toUpdateDoc({
+          status: "paused",
+          // The pause anchor. `updatedAt` moving along with it is fine now that
+          // nothing reads a duration out of it.
+          pausedAt: now,
+          updatedAt: now,
+        }),
+      }
+    );
 
     safeRevalidate("/");
     return { success: true, data: undefined };
@@ -152,34 +182,37 @@ export async function resumeSession(id: string): Promise<ActionResult> {
     const userId = await getUserId();
     if (!userId) return UNAUTHORIZED;
 
-    const sessionList = await db
-      .select()
-      .from(sessions)
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
-      .limit(1);
+    const doc = await studySessions.findOne({ _id: id, userId });
 
-    if (sessionList.length === 0) {
+    if (!doc) {
       return { success: false, error: "SESSION_NOT_FOUND" };
     }
 
-    const session = sessionList[0];
+    const session = toStudySession(doc);
     if (session.status !== "paused") {
       return { success: false, error: "INVALID_SESSION_STATE" };
     }
 
     const now = Math.floor(Date.now() / 1000);
-    // Add the duration of this pause interval
-    const pauseDelta = Math.max(0, now - session.updatedAt);
+    // Add the duration of this pause interval. The anchor is `pausedAt`, not
+    // `updatedAt`: an edit to the subject/notes/goal of a *paused* session
+    // bumped `updatedAt` and used to swallow the missing seconds.
+    const pauseStartedAt = pauseAnchorSeconds(session);
+    const pauseDelta =
+      pauseStartedAt === null ? 0 : Math.max(0, now - pauseStartedAt);
     const totalPaused = session.pausedSeconds + pauseDelta;
 
-    await db
-      .update(sessions)
-      .set({
-        status: "active",
-        pausedSeconds: totalPaused,
-        updatedAt: now,
-      })
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
+    await studySessions.updateOne(
+      { _id: id, userId },
+      {
+        $set: toUpdateDoc({
+          status: "active",
+          pausedSeconds: totalPaused,
+          pausedAt: null,
+          updatedAt: now,
+        }),
+      }
+    );
 
     safeRevalidate("/");
     return { success: true, data: undefined };
@@ -200,17 +233,13 @@ export async function finishSession(
     const userId = await getUserId();
     if (!userId) return UNAUTHORIZED;
 
-    const sessionList = await db
-      .select()
-      .from(sessions)
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
-      .limit(1);
+    const doc = await studySessions.findOne({ _id: id, userId });
 
-    if (sessionList.length === 0) {
+    if (!doc) {
       return { success: false, error: "SESSION_NOT_FOUND" };
     }
 
-    const session = sessionList[0];
+    const session = toStudySession(doc);
     if (session.status === "completed") {
       return { success: false, error: "SESSION_ALREADY_COMPLETED" };
     }
@@ -219,24 +248,30 @@ export async function finishSession(
     const now = Math.floor(Date.now() / 1000);
 
     let finalPaused = session.pausedSeconds;
-    if (session.status === "paused") {
-      finalPaused += Math.max(0, now - session.updatedAt);
+    // A session finished while paused must bank the open interval, from the
+    // same anchor resumeSession would have used.
+    const pauseStartedAt = pauseAnchorSeconds(session);
+    if (pauseStartedAt !== null) {
+      finalPaused += Math.max(0, now - pauseStartedAt);
     }
 
     const finalDuration = calculateDuration(session.startedAt, now, finalPaused);
 
-    await db
-      .update(sessions)
-      .set({
-        status: "completed",
-        endedAt: now,
-        durationSeconds: finalDuration,
-        pausedSeconds: finalPaused,
-        outcome: validated.outcome || null,
-        notes: validated.notes || null,
-        updatedAt: now,
-      })
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
+    await studySessions.updateOne(
+      { _id: id, userId },
+      {
+        $set: toUpdateDoc({
+          status: "completed",
+          endedAt: now,
+          durationSeconds: finalDuration,
+          pausedSeconds: finalPaused,
+          pausedAt: null,
+          outcome: validated.outcome || null,
+          notes: validated.notes || null,
+          updatedAt: now,
+        }),
+      }
+    );
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
@@ -265,7 +300,7 @@ export async function updateSession(
     const validated = updateSessionSchema.parse(input);
     const now = Math.floor(Date.now() / 1000);
 
-    const updateData: Partial<typeof sessions.$inferInsert> = {
+    const updateData: Partial<NewStudySession> = {
       updatedAt: now,
     };
 
@@ -276,10 +311,19 @@ export async function updateSession(
       updateData.outcome = validated.outcome || null;
     if (validated.notes !== undefined) updateData.notes = validated.notes || null;
 
-    await db
-      .update(sessions)
-      .set(updateData)
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
+    const result = await studySessions.updateOne(
+      { _id: id, userId },
+      { $set: toUpdateDoc(updateData) }
+    );
+
+    // `matchedCount`, not `modifiedCount`. Zero matched means the row is gone or
+    // belongs to someone else, and the caller has to be able to tell that from
+    // success. `modifiedCount` would be 0 for a save where the user changed
+    // nothing — a real, owned, present session — so testing it would report
+    // "not found" for the most ordinary edit in the app.
+    if (result.matchedCount === 0) {
+      return { success: false, error: "SESSION_NOT_FOUND" };
+    }
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
@@ -302,9 +346,13 @@ export async function deleteSession(id: string): Promise<ActionResult> {
     const userId = await getUserId();
     if (!userId) return UNAUTHORIZED;
 
-    await db
-      .delete(sessions)
-      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)));
+    const result = await studySessions.deleteOne({ _id: id, userId });
+
+    // Same reasoning as updateSession: a delete that matched nothing is not a
+    // delete, and the confirm dialog is about to claim that the row is gone.
+    if (result.deletedCount === 0) {
+      return { success: false, error: "SESSION_NOT_FOUND" };
+    }
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
@@ -324,7 +372,7 @@ export async function clearAllSessions(): Promise<ActionResult> {
     const userId = await getUserId();
     if (!userId) return UNAUTHORIZED;
 
-    await db.delete(sessions).where(eq(sessions.userId, userId));
+    await studySessions.deleteMany({ userId });
 
     safeRevalidate("/");
     safeRevalidate("/sessions");
