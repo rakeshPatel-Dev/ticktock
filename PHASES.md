@@ -2,6 +2,15 @@
 
 This document outlines the end-to-end execution roadmap to implement **TickTock** completely, in strict accordance with the specifications in [`docs/PRD.md`](./docs/PRD.md), [`docs/FOLDER_STRUCTURE.md`](./docs/FOLDER_STRUCTURE.md), [`docs/DB_SCHEMA.md`](./docs/DB_SCHEMA.md), and [`docs/API.md`](./docs/API.md).
 
+> **Pivot: SQLite + Drizzle → MongoDB.** Phases 1–8 below are the historical record of how the
+> app was originally built and are left unedited. The persistence layer was subsequently
+> rewritten against MongoDB with no data migration; `drizzle-orm`, `@libsql/client`,
+> `better-sqlite3` and `drizzle-kit` were removed, and `db/schema.ts` became hand-written types
+> plus BSON `Date` ↔ epoch-seconds mappers. Checklist items naming `drizzle.config.ts`,
+> `drizzle-kit generate`, or `DATABASE_URL=sqlite.db` no longer apply. The plan and the
+> decisions made during the rewrite are in [`docs/MONGO_MIGRATION_PLAN.md`](./docs/MONGO_MIGRATION_PLAN.md);
+> the current schema is in [`docs/DB_SCHEMA.md`](./docs/DB_SCHEMA.md).
+
 ---
 
 ## Architecture & Implementation Principles
@@ -10,7 +19,8 @@ This document outlines the end-to-end execution roadmap to implement **TickTock*
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript.
 - **UI Components:** shadcn/ui component library configured in `components/ui/` with Tailwind CSS v4.
 - **Design Aesthetic:** Minimal modern productivity instrument (Linear / Raycast vibe: clean typography, subtle borders, restrained palettes, dark mode support).
-- **Persistence:** SQLite with Drizzle ORM. Single authoritative database layer.
+- **Persistence:** MongoDB via the official `mongodb` driver (no ORM). Single authoritative
+  database layer. *Changed from SQLite + Drizzle ORM — see the pivot note below.*
 - **Timer Mechanics:** Timestamp-anchored arithmetic (`duration = elapsed - paused`). Zero reliance on fragile tick counters (`seconds++`) and zero periodic database polling.
 - **Resilience:** Full session recovery across page refreshes and browser restarts.
 
@@ -84,6 +94,7 @@ Implement the SQLite persistence layer and Drizzle ORM schema matching [`docs/DB
 - [x] Run migration generator (`drizzle-kit generate`) to create `drizzle/0000_huge_quasar.sql`.
 - [x] Implement automated migration runner / sync for initial schema initialization.
 - [x] Add lightweight seed script / dev fixtures to test queries if needed (`scripts/seed.ts`).
+  *Later removed — it wiped every session for the target account, too dangerous to keep.*
 
 **Acceptance Criteria:**
 - Database tables and indexes are generated and queryable in SQLite.
@@ -208,7 +219,7 @@ Build the dedicated analytics screen (`app/analytics/page.tsx`) focused on actio
 - [x] Clean, motivating empty states when no analytics data exists yet ("Nothing tracked yet. Ready when you are.").
 
 **Acceptance Criteria:**
-- Analytics accurately reflect SQLite session records across weekly/daily ranges.
+- Analytics accurately reflect session records across weekly/daily ranges.
 - Zero clutter: strictly useful study metrics without fake gamification or arbitrary scores.
 
 ---
@@ -270,3 +281,4 @@ Refine the application into a frictionless, calm desktop/mobile instrument.
 | **Phase 6** | Analytics & Insights Dashboard | Completed |
 | **Phase 7** | Settings, Preferences & Data Portability | Completed |
 | **Phase 8** | UX Polish, Keyboard Shortcuts & Final Verification | Completed |
+| **Pivot** | SQLite + Drizzle → MongoDB rewrite (no data migration) | Completed |

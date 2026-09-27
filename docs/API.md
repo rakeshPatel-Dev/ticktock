@@ -2,7 +2,7 @@
 
 ## Overview
 
-TickTock uses Next.js server-side functionality with Drizzle ORM and SQLite.
+TickTock uses Next.js server-side functionality with the official MongoDB driver (no ORM).
 
 There is no separate Express backend.
 
@@ -19,10 +19,10 @@ React UI
    │                        │
    └── Server Components ──┤
                             ▼
-                         Drizzle
+                       MongoDB driver
                             │
                             ▼
-                          SQLite
+                         MongoDB
 ```
 
 ---
@@ -207,6 +207,18 @@ Used for correcting completed sessions.
 
 Only fields supplied by the caller should be changed.
 
+### Errors
+
+```ts
+{ success: false, error: "SESSION_NOT_FOUND" }
+```
+
+Returned when the `updateOne` matched nothing — the row is gone or belongs to another user. It
+checks `matchedCount`, not `modifiedCount`: a save where the user changed nothing is a real,
+owned, present session and also reports `modifiedCount: 0`, so testing that would report
+"not found" for the most ordinary edit. The caller must keep its form open on this result instead
+of treating it as a success.
+
 ---
 
 # 7. Delete Session
@@ -225,7 +237,16 @@ Used for:
 - Test sessions
 - Incorrect records
 
-The UI should ask for confirmation before calling this action.
+The UI should ask for confirmation before calling this action, and must not close the confirmation
+on `SESSION_NOT_FOUND` — the row is still there.
+
+### Errors
+
+```ts
+{ success: false, error: "SESSION_NOT_FOUND" }
+```
+
+Returned when the `deleteOne` deleted nothing.
 
 ---
 
@@ -280,17 +301,24 @@ Analytics should be calculated from the `sessions` table rather than stored sepa
 ### Server Function
 
 ```ts
-getDailyAnalytics(range)
+getDailyAnalytics(userId, targetDate?, timeZone?)
 ```
 
 ### Input
 
+The week (Monday–Sunday) containing `targetDate`, bucketed by calendar day **in `timeZone`**.
+
 ```ts
 {
-  from: Date
-  to: Date
+  targetDate: Date      // defaults to now
+  timeZone: string      // IANA zone; defaults to the server's own
 }
 ```
+
+`timeZone` is not decoration. The range bounds and the `$dateToString` bucket keys must be produced
+with the same zone, or a session can be matched by the range and then filed under a key the range
+never contained — which drops the minutes instead of showing them on the wrong bar. Callers get the
+user's zone from `lib/session.ts#getUserTimeZone`.
 
 ### Response
 
@@ -298,16 +326,21 @@ getDailyAnalytics(range)
 [
   {
     date: "2026-09-15",
-    durationSeconds: 16200
+    dayLabel: "Tue",
+    durationSeconds: 16200,
+    sessionCount: 3
   },
   {
     date: "2026-09-16",
-    durationSeconds: 12600
+    dayLabel: "Wed",
+    durationSeconds: 12600,
+    sessionCount: 2
   }
 ]
 ```
 
-Used for the daily activity chart.
+Used for the daily activity chart. Always seven buckets, Monday first, with empty days present as
+zeros.
 
 ---
 
@@ -325,16 +358,27 @@ getSubjectAnalytics(range)
 [
   {
     subject: "DSA",
-    durationSeconds: 42120
+    durationSeconds: 42120,
+    sessionCount: 11,
+    percentage: 69
   },
   {
     subject: "DBMS",
-    durationSeconds: 19200
+    durationSeconds: 19200,
+    sessionCount: 5,
+    percentage: 31
   }
 ]
 ```
 
-Used to display time distribution by subject.
+Used to display time distribution by subject. Sorted by `durationSeconds` descending, then by
+`subject` — the tie-breaker is required, or two subjects with equal totals can swap places between
+page loads.
+
+Subjects are grouped case- and whitespace-insensitively, so `"Python"`, `"python"` and
+`"  pYtHoN  "` are one row with the summed time, and `subject` is the most recent spelling the user
+typed. The fold happens at read time, not on write, which is why historical duplicates merge
+without a migration — see `lib/subjects.ts`.
 
 ---
 
@@ -372,8 +416,11 @@ Instead of making many separate database requests from the dashboard, provide on
 ### Server Function
 
 ```ts
-getDashboardSummary(date)
+getDashboardSummary(userId, targetDate?, timeZone?)
 ```
+
+`timeZone` decides which calendar day "today" means — the user's midnight, not the server's, so a
+10 PM session in IST still counts toward the user's today.
 
 ### Response
 
@@ -431,12 +478,24 @@ Use Zod for validation.
 Example:
 
 ```ts
+const subjectField = z
+  .string()
+  .trim()
+  .min(1, "Subject is required")
+  .max(100)
+  .transform(normalizeSubject)
+
 const createSessionSchema = z.object({
-  subject: z.string().trim().min(1).max(100),
+  subject: subjectField,
   topic: z.string().trim().max(200).optional(),
   goal: z.string().trim().max(300).optional(),
 })
 ```
+
+`.trim()` is zod's own transform, so a whitespace-only subject still fails `.min(1)`. The extra
+`normalizeSubject` collapses internal whitespace runs — otherwise a pasted "Data  Structures" and a
+typed "Data Structures" become two subjects. Casing is left alone on purpose (`DSA` is not "Dsa");
+the case-insensitive comparison lives on the read side.
 
 The server must never assume that client-side validation is sufficient.
 
@@ -461,11 +520,16 @@ Possible errors:
 ACTIVE_SESSION_EXISTS
 SESSION_NOT_FOUND
 INVALID_SESSION_STATE
+SESSION_ALREADY_COMPLETED
+UNAUTHORIZED
 INVALID_INPUT
 DATABASE_ERROR
 ```
 
-The UI should translate these into human-readable messages.
+The UI should translate these into human-readable messages. `lib/action-errors.ts` is that
+translation in one place, so a new action cannot invent a second wording for the same code. Zod
+messages are returned as-is and are not in the table: an unknown string is a human message and is
+passed through.
 
 Example:
 
@@ -473,6 +537,11 @@ Example:
 You already have a session running.
 Finish or resume it before starting another.
 ```
+
+An action that fails must not leave the UI claiming success. Pause/resume apply optimistically and
+revert on failure; the finish and edit modals keep their form open and show the error. A swallowed
+`ActionResult` is indistinguishable from a successful write, and the user is the one who finds out
+later.
 
 Do not expose raw database errors to the user.
 
@@ -489,7 +558,7 @@ Timer
   ↓
 API request every second
   ↓
-SQLite
+MongoDB
 ```
 
 Instead:

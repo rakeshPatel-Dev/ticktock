@@ -2,6 +2,13 @@
 
 Status snapshot at handoff. Read this before doing anything else.
 
+> **SUPERSEDED — the database is now MongoDB, not Turso/libSQL.**
+> Everything below that mentions Turso, `db:push`, `drizzle.config.ts`, or `TURSO_*` describes
+> a state that no longer exists. The Drizzle/SQLite layer was removed and replaced with the
+> native `mongodb` driver; see `docs/MONGO_MIGRATION_PLAN.md` and `docs/DB_SCHEMA.md`.
+> The "What has been done" section is kept as a historical record of the Better Auth port.
+> The two sections after it have been rewritten to match reality.
+
 ---
 
 ## The plan (as agreed)
@@ -13,7 +20,7 @@ using the **Better Auth** stack:
   logged-in user, scope every query/action to the signed-in `userId`.
 - Landing page → login/signup → authenticated session tracker, account settings, and
   subject analytics for **each user**.
-- Keep it verifiable: seed + an end-to-end verification script must pass.
+- Keep it verifiable: an end-to-end verification script must pass.
 
 Deferred by agreement from the start: **production libSQL/Turso schema push** and the
 deployment/README/env docs were left for you, not auto-executed.
@@ -57,8 +64,6 @@ deployment/README/env docs were left for you, not auto-executed.
 - `app/(auth)/` login/signup UI wired to the auth actions.
 
 ### Tooling / scripts
-- `scripts/seed.ts` — seeds realistic sample sessions **for a specific existing account**
-  (`npm run db:seed -- --user <username>`); resolves the user by username.
 - `scripts/verify-e2e.ts` — headless query-layer verification, scoped to a real account
   (`npm run test:e2e -- --user <username>`). Exercises the per-user query/action surface
   since Better Auth server actions are cookie-gated.
@@ -68,45 +73,91 @@ deployment/README/env docs were left for you, not auto-executed.
 
 ## What is still missing / broken — IMPORTANT
 
-1. **The remote Turso database is empty (no schema).** This is the blocker that makes the
-   app appear "broken": `.env.local` points `TURSO_DATABASE_URL` (and `DATABASE_URL`) at the
-   **remote Turso** endpoint, but no `user` table exists there. Consequence:
-   - **Every signup fails with "That username is already taken."** for *every* username.
-     Root cause: the DB returns `SQLITE_ERROR: no such table: user` → Better Auth 500 →
-     `signupAction` maps **any** better-auth error to "already taken." (Confirmed by direct
-     HTTP probe: `POST /api/auth/sign-up/email` → HTTP 500, `SQLITE_ERROR: no such table:
-     user`.)
-   - The `86KB sqlite.db` that exists at repo root is only the **local dev** fallback
-     (`NODE_ENV=development` + no URL → `file:sqlite.db`). It is NOT the DB the app uses in
-     production/normal config. Seeding it does not fix remote signup.
+*(Rewritten after the MongoDB rewrite. The previous version of this section described a
+Turso "no such table: user" blocker and a `npm run db:push` fix; both are obsolete.)*
 
-   **Fix: push the schema to the remote Turso DB.** Run (you do this — it writes to your
-   Turso account):
+1. **Stale `TURSO_*` variables in `.env.local`.** They are deliberately left in place and are
+   now read by nothing — no source file references Turso, libSQL, or Drizzle. Safe to delete:
+
    ```bash
-   npm run db:push   # drizzle-kit push against TURSO_DATABASE_URL
+   # .env.local
+   # TURSO_DATABASE_URL=...
+   # TURSO_AUTH_TOKEN=...
+   # the commented-out # DATABASE_URL=... line at the top
    ```
-   then re-verify signup at `/signup`.
 
-2. `scripts/verify-e2e.ts` was rewritten to target the per-user query layer but has not been
-   executed successfully end-to-end yet (it requires a real account, which you can't create
-   until item 1 is fixed). `npm run test:e2e -- --user <username>` is the command.
+   Leave `MONGODB_URI`, `MONGODB_USERNAME`, `MONGODB_PASSWORD`, `BETTER_AUTH_SECRET`, and
+   `BETTER_AUTH_URL`.
 
-3. Better-auth error hand-off is lossy: `signupAction` collapses every server error into
-   "That username is already taken." Once the DB is correct this is only a cosmetic UX gap,
-   but consider surfacing the real better-auth message instead of blanket-mapping.
+2. **No data was migrated.** The old database held 19 rows: 2 throwaway `@ticktock.local`
+   accounts and 5 completed study sessions (14h 48m, subjects Complete Java / OB & HRM /
+   Discrete Structure / Digital Logic). MongoDB starts empty. Recreate the account at
+   `/signup`; the 5 sessions are re-typable from the export if they matter.
 
-4. README + `.env` docs were intentionally left for you (deferred scope). Document
-   `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` usage.
+   Git tag `pre-mongo-rewrite` (at `785b5e2`) points at the last Turso/Drizzle commit, and the
+   old Turso database is untouched and still readable.
+
+3. **`sqlite.db` (86 KB, untracked) at the repo root is dead weight.** Nothing references it.
+   It was only ever the local dev fallback. Safe to delete.
+
+4. Better-auth error hand-off is lossy: `signupAction` collapses every server error into
+   "That username is already taken." Still true. Consider surfacing the real better-auth
+   message instead of blanket-mapping.
+
+5. **RESOLVED — the `getDailyAnalytics` day-bucketing bug.** It bucketed by UTC while computing
+   week boundaries in local time, so in IST sessions between 00:00 and 05:30 landed in the wrong
+   day. Fixed as a separate, tested change: `lib/timezone.ts` computes zoned day/week boundaries,
+   `$dateToString` gets an explicit `timezone`, and the user's IANA zone reaches the server through
+   the `ticktock_tz` cookie written by `components/timezone-sync.tsx`. See `docs/DB_SCHEMA.md` and
+   `docs/ISSUES.md` #3.
+
+6. **RESOLVED — all five High issues in `docs/ISSUES.md` (#4–#8).** The daily goal is read back
+   through `lib/daily-goal.ts`; pause/resume roll back and report on failure; the finish and edit
+   modals surface a failed `ActionResult` instead of closing; `updateSession`/`deleteSession` return
+   `SESSION_NOT_FOUND` when nothing matched (on `matchedCount`, not `modifiedCount` — see
+   `docs/ISSUES.md` #7); and subject identity is one rule in `lib/subjects.ts` — normalised on
+   write, folded case-insensitively on read, so historical `"Python"`/`"python"` duplicates merge
+   with no migration. The first-request timezone gap is closed by a single `router.refresh()` from
+   `TimezoneSync` on `/` and `/analytics`.
+
+7. **Fixed in passing — `npm run test:e2e` could never report success.** A passing run left the
+   Mongo driver's pool open and the process hung forever, so the exit code CI waits for never
+   arrived. The script now closes the client and exits 0 explicitly.
 
 ---
 
 ## Suggested next step (single highest-leverage action)
 
 ```
-npm run db:push          # migrate remote Turso schema
-npm run db:seed -- --user <your_username>    # after you create the account
-npm run test:e2e -- --user <your_username>
+npm run db:backfill-paused-at                 # one-off, idempotent, safe to re-run
+npm run db:indexes                            # idempotent, safe to re-run
 npm run build
+npm run dev                                   # sign up at /signup
+npm run test:e2e -- --user <your_username>
 ```
 
-Once `db:push` succeeds, signup stops failing and the whole flow is testable.
+Then remove the `TURSO_*` lines from `.env.local` and from the Vercel project, and delete
+`sqlite.db`.
+
+---
+
+## Verified working
+
+Checked against a live Atlas cluster at the `pre-mongo-rewrite` rewrite:
+
+- `npm run build` clean; `tsc --noEmit` clean; `npm run lint` clean
+- Signup through the real form; `user._id` is a string UUID (not `ObjectId`), `emailVerified`
+  is a boolean, auth timestamps are BSON `Date`
+- `npm run db:indexes` creates all 7 indexes and is idempotent on re-run
+- `npm run test:e2e -- --user <name>` — 28/28 checks, including the `active_session_uniq`
+  index rejecting a second active session and the BSON `Date` ↔ epoch-seconds round-trip. Since
+  the data-integrity fixes it is 55/55, adding the `pausedAt` anchor (survives a mid-pause edit),
+  zoned day bucketing (the same instant files Monday in New York and Tuesday in Kolkata, a
+  spring-forward day is 23h), week-scoped subject/topic panels matching the chart total, and
+  stable tie-break ordering. Now **64/64**, adding subject identity: three spellings of one
+  subject produce one list entry, one analytics row with the summed time, a filter that matches any
+  spelling, an anchored and metacharacter-safe pattern, and the `matchedCount`-vs-`modifiedCount`
+  distinction that `updateSession` relies on
+- Full UI flow through Chromium: login → start → pause → resume → finish, session persisted
+  and visible in `/sessions` and `/analytics`, no `NaN` / `1970` / `undefined` in analytics
+- `GET /api/export?format=json` and `?format=csv` both correct

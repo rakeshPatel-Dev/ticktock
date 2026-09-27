@@ -34,12 +34,13 @@ ticktock/
 │   ├── timer.ts
 │   └── utils.ts
 │
-├── drizzle/
+├── scripts/
+│   ├── create-indexes.ts
+│   └── verify-e2e.ts
 │
 ├── public/
 │
 ├── .env.local
-├── drizzle.config.ts
 ├── next.config.ts
 ├── package.json
 ├── tsconfig.json
@@ -88,10 +89,13 @@ components/
 ├── start-session.tsx
 ├── session-list.tsx
 ├── session-form.tsx
-└── dashboard-summary.tsx
+├── dashboard-summary.tsx
+└── timezone-sync.tsx
 ```
 
-Keep components focused on UI and interaction.
+Keep components focused on UI and interaction. `timezone-sync.tsx` is the one deliberate exception: it
+renders nothing and exists to hand the browser's timezone to the server, which no server component can
+discover on its own.
 
 ---
 
@@ -117,21 +121,32 @@ These are reusable primitives, not application-specific components.
 
 ### `db/`
 
-Everything directly related to SQLite and Drizzle.
+Everything directly related to MongoDB. There is no ORM — the official `mongodb` driver is
+used directly.
 
 ```text
 db/
 ├── index.ts
+├── indexes.ts
 └── schema.ts
 ```
 
 #### `index.ts`
 
-Creates the SQLite database connection and Drizzle instance.
+Creates the `MongoClient` singleton (cached on `globalThis` outside production so dev HMR does
+not leak connections), the `Db` handle, and the `studySessions` / `users` collection accessors.
+Also holds the production guard: `MONGODB_URI` is required and must be a `mongodb://` or
+`mongodb+srv://` URL.
+
+#### `indexes.ts`
+
+Idempotent index bootstrap. Run with `npm run db:indexes`. Auth collections are excluded except
+for the unique indexes the Better Auth adapter does not create for itself.
 
 #### `schema.ts`
 
-Defines the database tables.
+Hand-written document types and the boundary mappers between BSON `Date` and the epoch-seconds
+contract the rest of the app is written against. Contains no imports from `db/index.ts`.
 
 ---
 
@@ -141,8 +156,12 @@ Small pieces of reusable application logic.
 
 ```text
 lib/
+├── action-errors.ts
 ├── actions.ts
+├── daily-goal.ts
 ├── queries.ts
+├── subjects.ts
+├── timezone.ts
 ├── timer.ts
 └── utils.ts
 ```
@@ -162,6 +181,11 @@ updateSession()
 deleteSession()
 ```
 
+Every action returns an `ActionResult` and means it: an `updateOne` / `deleteOne` that matched
+nothing returns `SESSION_NOT_FOUND` instead of a success that changed nothing. Test
+`matchedCount`, not `modifiedCount` — a save where the user changed nothing is a real, owned,
+present session and also reports `modifiedCount: 0`.
+
 #### `queries.ts`
 
 Server-side database queries.
@@ -176,6 +200,51 @@ getDailyAnalytics()
 getSubjectAnalytics()
 getTopicAnalytics()
 ```
+
+Analytics queries take an IANA `timeZone` (or a `RangeFilter`) so the range bounds and the bucket
+keys are derived from one call — see `lib/timezone.ts`.
+
+Subject reads fold case and whitespace server-side with the same aggregation expression, so the
+subject list, the analytics breakdown, and the subject filter cannot disagree — see
+`lib/subjects.ts`.
+
+#### `subjects.ts`
+
+What counts as the same subject. `normalizeSubject()` for writes, `subjectKey()` / `isSameSubject()`
+for comparisons. Deliberately import-free (no Mongo, no Next) because client components and server
+queries both need it, and deliberately does not change casing: `DSA` is not "Dsa".
+
+#### `daily-goal.ts`
+
+The `localStorage`-backed daily focus goal, shared by the settings form and the dashboard progress
+bar through `useDailyGoalHours()`. Read in an effect, never during render — `localStorage` does not
+exist during SSR. One owner for the key, so the form and the bar cannot drift apart.
+
+#### `action-errors.ts`
+
+Turns an action's error code into something worth showing a person. Zod validation messages are not
+in the table; an unknown string is a human message and is passed through.
+
+#### `timezone.ts`
+
+Calendar-day and week boundaries in a named IANA zone, using `Intl` only.
+
+```text
+getDayRange()   // the user's "today", DST-correct
+getWeekRange()  // Mon-Sun, plus the seven bucket keys
+formatDateInZone()
+dateToStringOptions()
+```
+
+The server cannot know the user's zone, so `components/timezone-sync.tsx` publishes the browser's
+zone to a cookie and `lib/session.ts#getUserTimeZone` reads it back. Keep this module free of
+Next.js and Mongo imports so it also works in a route handler and in the verification script.
+
+A first request arrives before the cookie exists, so the server answers it with its own fallback
+zone. The two pages whose numbers are bucketed by zone (`/`, `/analytics`) pass that resolved zone
+back to `TimezoneSync`, which calls `router.refresh()` once when it differs from the browser's. The
+root-layout instance is left without the prop on purpose — reading the cookie there would make the
+static sign-in and sign-up pages dynamic to service a component that does nothing for them.
 
 #### `timer.ts`
 
@@ -197,17 +266,21 @@ Do not turn this into a dumping ground.
 
 ---
 
-### `drizzle/`
+### `scripts/`
 
-Generated migration files.
-
-Example:
+One-off operational scripts, run with `tsx`.
 
 ```text
-drizzle/
-├── 0000_initial.sql
-└── meta/
+scripts/
+├── _load-env.ts
+├── backfill-paused-at.ts
+├── create-indexes.ts
+└── verify-e2e.ts
 ```
+
+There is no migration directory, because there is no schema migration step — indexes are created
+idempotently at runtime or via `npm run db:indexes`. A field added later (like `pausedAt`) gets a
+one-off idempotent backfill script here instead, e.g. `npm run db:backfill-paused-at`.
 
 Don't manually put application logic here.
 
@@ -234,7 +307,7 @@ Server Actions / Queries
   ↓
 Database
   ↓
-SQLite
+MongoDB
 ```
 
 More specifically:
@@ -249,10 +322,10 @@ lib/queries.ts
   ↓
 db/
   ↓
-SQLite
+MongoDB
 ```
 
-Components should not directly manipulate SQLite.
+Components should not query the database directly.
 
 ---
 

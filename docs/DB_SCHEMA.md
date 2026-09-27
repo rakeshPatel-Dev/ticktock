@@ -2,41 +2,96 @@
 
 ## Database
 
-- **Database:** SQLite
-- **ORM:** Drizzle ORM
+- **Database:** MongoDB (Atlas in production)
+- **Driver:** `mongodb` (official Node driver) — no ORM
 - **Purpose:** Store coding/study sessions and basic tracking data.
-- **Users:** Single user
-- **Authentication:** Not required for V1
+- **Authentication:** Better Auth, four adapter-owned collections
+
+> Superseded the SQLite/Drizzle schema. The design rationale below is unchanged; only
+> the storage shape moved. See `docs/MONGO_MIGRATION_PLAN.md` for the rewrite plan.
 
 ---
 
-## Sessions
+## Collections
 
-The `sessions` table is the core of the application.
+### `studySessions` — owned by this app
 
-Each row represents one completed or currently active study session.
+Renamed from the `sessions` SQL table to avoid a one-letter collision with Better Auth's
+`session` collection.
 
-| Column | Type | Nullable | Default | Description |
-|---|---|---:|---|---|
-| `id` | text | No | UUID | Unique session ID |
-| `subject` | text | No | - | Subject being studied |
-| `topic` | text | Yes | `null` | Specific topic |
-| `started_at` | integer | No | - | Session start timestamp |
-| `ended_at` | integer | Yes | `null` | Session completion timestamp |
-| `duration_seconds` | integer | No | `0` | Actual focused time |
-| `paused_seconds` | integer | No | `0` | Total paused time |
-| `status` | text | No | `active` | `active`, `paused`, or `completed` |
-| `outcome` | text | Yes | `null` | What was accomplished |
-| `goal` | text | Yes | `null` | Optional session goal |
-| `notes` | text | Yes | `null` | Optional notes |
-| `created_at` | integer | No | current time | Record creation time |
-| `updated_at` | integer | No | current time | Last modification time |
+| Field | BSON type | Nullable | Description |
+|---|---|---:|---|
+| `_id` | string | No | `crypto.randomUUID()` |
+| `userId` | string | Yes | Owning user; `null` for orphans |
+| `subject` | string | No | Subject being studied |
+| `topic` | string | Yes | Specific topic |
+| `startedAt` | Date | No | Session start |
+| `endedAt` | Date | Yes | Session completion |
+| `durationSeconds` | int32 | No | Actual focused time; defaults `0` |
+| `pausedSeconds` | int32 | No | Total paused time; defaults `0` |
+| `status` | string | No | `active`, `paused`, or `completed`; defaults `active` |
+| `pausedAt` | Date | Yes | Start of the **current** pause; `null` when not paused |
+| `outcome` | string | Yes | What was accomplished |
+| `goal` | string | Yes | Optional session goal |
+| `notes` | string | Yes | Optional notes |
+| `createdAt` | Date | No | Record creation |
+| `updatedAt` | Date | No | Last modification. **Never** a duration input |
+
+### `user`, `session`, `account`, `verification` — owned by Better Auth
+
+Do not hand-write writes against these. Better Auth's mongo adapter creates and manages them,
+including `account.password` (the credential hash) and `session.token`.
+
+Collection names are **singular** (`usePlural: false`). `session` (auth) and `studySessions`
+(app) are distinct collections.
+
+`_id` is a **string** on all five collections. `lib/auth.ts` sets
+`advanced.database.generateId = () => crypto.randomUUID()`, which makes the adapter skip its
+default `ObjectId` coercion and match the app's own UUID convention.
+
+---
+
+## Timestamps: two units, one boundary
+
+MongoDB's native date type is BSON `Date`, which is **milliseconds**. The domain layer speaks
+epoch **seconds**, because `lib/timer.ts` and four components are built against that contract.
+
+`db/schema.ts` owns the conversion in both directions:
+
+```ts
+toEpochSeconds(date: Date): number        // Math.floor(date.getTime() / 1000)
+fromEpochSeconds(seconds: number): Date   // new Date(seconds * 1000)
+```
+
+**Every read must go through `toStudySession` and every write through `fromStudySession` /
+`toUpdateDoc`.** Nothing in the type system distinguishes seconds from milliseconds at the
+boundary — `StudySessionDoc.startedAt` is a `Date` and `StudySession.startedAt` is a `number`,
+but a stray `* 1000` is a silent bug that only surfaces as an empty analytics page.
+
+### `pausedAt` owns the pause anchor, `updatedAt` does not
+
+`pausedAt` is written **only** by `pauseSession` (sets it) and `resumeSession` / `finishSession`
+(clear it to `null`). Both of those actions bank the open interval with
+`Math.max(0, now - pauseAnchorSeconds(session))`, and `db/schema.ts#pauseAnchorSeconds` is the only
+sanctioned reader, so the server actions and the client timer cannot drift apart.
+
+It used to be overloaded onto `updatedAt`, which held only while pause/resume was the sole writer
+of that field. Editing the subject, notes, or goal of a **paused** session moved the anchor forward
+and silently under-counted the pause — the same `updatedAt` on a `completed` row was then read as a
+pause start the next time the row was touched. Nothing about the field being editable was guarded;
+only the absence of a second writer was assumed.
+
+`pauseAnchorSeconds` falls back to `updatedAt` for a paused document written before `pausedAt`
+existed, so the fix is safe to deploy ahead of the data. `npm run db:backfill-paused-at` pins those
+rows (`pausedAt = updatedAt`) and is idempotent; once it has run, the fallback arm is dead code kept
+only for databases that skipped the script.
+
+Asserted in `scripts/verify-e2e.ts`: the anchor survives an edit made mid-pause, a completed session
+has no anchor, and a legacy document still resolves one.
 
 ---
 
 ## Status
-
-Allowed values:
 
 ```text
 active
@@ -44,116 +99,49 @@ paused
 completed
 ```
 
-### `active`
+- `active` — the session is currently running.
+- `paused` — the session exists but the timer is temporarily stopped.
+- `completed` — finished, and its final duration has been recorded.
 
-The session is currently running.
-
-### `paused`
-
-The session exists but the timer is temporarily stopped.
-
-### `completed`
-
-The session has been finished and its final duration has been recorded.
+The enum is unenforced at the database level, exactly as the SQL `text(..., { enum })` was.
 
 ---
 
 ## Outcome
 
-Outcome is free-form text for V1.
-
-Examples:
-
-```text
-Learned
-Revised
-Solved problems
-Built something
-Practiced
-```
-
-Do not create a separate `outcomes` table.
+Outcome is free-form text. Do not create a separate `outcomes` collection.
 
 ---
 
-# Schema
+# Why There Is No Subject Collection
 
-```text
-sessions
-────────────────────────────────────
-id                  TEXT PRIMARY KEY
-subject             TEXT NOT NULL
-topic               TEXT
-started_at          INTEGER NOT NULL
-ended_at            INTEGER
-duration_seconds    INTEGER NOT NULL DEFAULT 0
-paused_seconds      INTEGER NOT NULL DEFAULT 0
-status              TEXT NOT NULL DEFAULT 'active'
-outcome             TEXT
-goal                TEXT
-notes               TEXT
-created_at          INTEGER NOT NULL
-updated_at          INTEGER NOT NULL
-```
+Subjects are stored directly on the session.
 
----
-
-# Why There Is No Subject Table
-
-For V1, subjects are stored directly on the session.
-
-Example:
-
-```text
+```ts
 subject = "DSA"
 topic   = "Binary Search"
 ```
 
-rather than:
+rather than separate `subjects` / `topics` collections. If the application later needs subject
+management, colors, icons, ordering, per-subject goals, or settings, normalize then — not before.
 
-```text
-subjects
-topics
-sessions
-```
+## Subject identity without a collection
 
-The application has one user and a relatively small amount of data.
+No collection does not mean no identity. There is one rule, in two halves, and both live in
+`lib/subjects.ts`:
 
-A separate subject/topic system would add complexity without providing meaningful value yet.
+- **Stored:** trimmed with internal whitespace collapsed (`normalizeSubject`). Casing is preserved —
+  `DSA` and `OB & HRM` are acronyms the user typed on purpose, and title-casing would mangle them.
+- **Compared:** case- and whitespace-insensitive (`subjectKey` / `isSameSubject`), folded on the
+  server by the same aggregation expression in `getAllSubjects`, `getSubjectAnalytics`,
+  `getTopicAnalytics`, and the `getSessions` subject filter.
 
-If the application later needs:
+Folding on the read side is what makes this a fix rather than a rule: `"Python"` and `"python"`
+stored months apart become one row and one dropdown entry with no migration. A case-insensitive
+collation on `user_subject_idx` would not have done that — it fixes exact-match lookups and nothing
+else — and the duplicates were visible in the list and the breakdown, not in the index.
 
-- Subject management
-- Subject colors
-- Subject icons
-- Subject ordering
-- Subject goals
-- Topic completion
-- Subject-specific settings
-
-then subjects/topics can be normalized into separate tables.
-
----
-
-# Timestamps
-
-Store timestamps as Unix timestamps.
-
-Example:
-
-```text
-started_at = 1789553400
-```
-
-The application converts timestamps to the user's local timezone when displaying them.
-
-Do not store formatted dates such as:
-
-```text
-"2026-09-16 10:30 AM"
-```
-
-in the database.
+The subject colour in `lib/colors.ts` hashes the same key, so one subject cannot be two colours.
 
 ---
 
@@ -161,99 +149,135 @@ in the database.
 
 All durations are stored in seconds.
 
-Example:
-
-```text
-duration_seconds = 3720
+```ts
+durationSeconds = 3720
 ```
 
-The UI converts this to:
-
-```text
-1h 02m
-```
-
-This keeps calculations simple and avoids storing presentation-specific values.
-
----
-
-# Timer Rules
-
-The timer should calculate focused time based on timestamps rather than relying on a counter.
-
-Conceptually:
-
-```text
-focused time =
-elapsed time - paused time
-```
-
-The frontend may update the displayed timer every second, but the database should store the final calculated duration.
+The UI converts this to `1h 02m`. Never store a counter, and never store a formatted string.
+`calculateDuration` in `lib/timer.ts` derives focused time as `elapsed − paused`, so the recorded
+value is always a function of timestamps rather than of how often a `setInterval` fired.
 
 ---
 
 # Active Session
 
-Only one active session should exist at a time.
+Only one active or paused session may exist per user.
 
-Before starting a new session:
+**This is now enforced by the database**, not just by application code:
 
-```text
-Check for existing active/paused session
-        ↓
-If one exists
-        ↓
-Resume it or ask the user to finish it
+```js
+{ key: { userId: 1, status: 1, startedAt: -1 },
+  name: "active_session_uniq",
+  unique: true,
+  partialFilterExpression: { status: { $in: ["active", "paused"] } } }
 ```
 
-Do not allow multiple simultaneous active sessions in V1.
+`createSession` still does a `findOne` first, so the common case returns a clean
+`ACTIVE_SESSION_EXISTS` error code rather than surfacing `E11000` to the UI. The index is what
+actually holds the line when two requests race — previously both inserts succeeded and
+`getActiveSession` merely happened to return the newer one.
 
 ---
 
 # Indexes
 
-Only add indexes that support actual queries.
+```js
+db.studySessions.createIndexes([
+  { key: { userId: 1, startedAt: -1 }, name: "user_started_idx" },
+  { key: { userId: 1, status: 1 },   name: "user_status_idx"  },
+  { key: { userId: 1, subject: 1 },  name: "user_subject_idx" },
+  { key: { userId: 1, status: 1, startedAt: -1 }, name: "active_session_uniq", unique: true,
+    partialFilterExpression: { status: { $in: ["active", "paused"] } } },
+])
 
-Recommended:
-
-```text
-sessions.started_at
-sessions.status
-sessions.subject
+db.user.createIndex({ email: 1 },    { unique: true, partialFilterExpression: { email:    { $type: "string" } } })
+db.user.createIndex({ username: 1 }, { unique: true, partialFilterExpression: { username: { $type: "string" } } })
+db.session.createIndex({ token: 1 }, { unique: true, partialFilterExpression: { token:    { $type: "string" } } })
 ```
 
-These support:
+The `partialFilterExpression` on all three is load-bearing, not decoration. A plain unique index
+stores a missing field as `null`, so without it the database permits exactly **one** user with no
+username — the second insert fails `E11000`. Verified on a live cluster: two username-less
+documents came back `BLOCKED (11000)` before the partial index and `ALLOWED` after. Unreachable
+through the signup form, reachable by POSTing straight to `/api/auth/sign-up/email`.
 
-- Recent sessions
-- Date-based filtering
-- Finding the active session
-- Subject analytics
+Every real query filters `userId` *and* something else, so the compound indexes serve them
+directly — the four single-column SQLite indexes this replaced were planner-dependent.
 
-Do not add indexes everywhere.
+**These indexes are case-sensitive, and that is deliberate.** `user_username_idx` is a plain
+binary index, so the database will accept `rakesh`, `Rakesh` and `RAKESH` as three distinct
+accounts. Canonicalisation happens one layer up, in the zod schema in `lib/auth-actions.ts`:
+`.trim().toLowerCase()` runs before the length and charset checks, so `RaKeSh` and `  RAKESH  `
+both store as `rakesh`, and login normalises identically. Nothing in Better Auth lowercases a
+username (it lowercases email in a few places, never username), so without that schema every
+lookup would disagree with what the user typed.
+
+A collation index (`{ collation: { locale: "en", strength: 2 } }`) would enforce
+case-insensitivity in the database, but it was rejected on purpose: a collation index is only
+consulted by queries that carry the same collation, and Better Auth issues its own
+`findOne({ username })` without one, so the index would be silently bypassed and effectively
+decorative.
+
+Residual gap: a username written directly through the auth HTTP API bypasses the zod schema, so
+it can be stored mixed-case and would then be unloginable through the form, since login
+normalises. The database cannot catch this without the collation index above.
+
+Run with `npm run db:indexes`. `createIndexes` is a no-op when the index already exists with the
+same spec, so it is safe to re-run.
+
+**No text index.** `getSessions` searches with a leading-wildcard pattern, which no B-tree index
+can serve. A `$text` index would fix the scan, but `$text` queries cannot be sorted by anything
+except relevance score, and `getSessions` always orders by `startedAt`. So search uses an escaped
+`$regex` with the `i` flag, which also preserves SQLite `LIKE`'s exact substring semantics.
 
 ---
 
-# Future Tables
+# Analytics
 
-Do not create these in V1.
+`getSubjectAnalytics`, `getTopicAnalytics` and `getDailyAnalytics` aggregate server-side with
+`$group`. The previous implementation fetched a user's **entire** completed history into JS on
+every request — an unbounded memory read that was a latent outage at ~10k sessions per user,
+independent of which database backs the app.
 
-Potential future additions:
+`getDashboardSummary`'s three independent reads now run under `Promise.all` rather than in
+sequence.
 
-```text
-daily_goals
-settings
-session_pauses
-```
+## One week, one zone
 
-Only introduce them when an actual feature requires them.
+Three separate defects used to make the analytics page disagree with itself. All three are fixed in
+`lib/timezone.ts` + `lib/queries.ts`, and the rule that came out of them is now the contract:
+
+> **Every query on this page derives its range bounds AND its bucket keys from the same
+> `getWeekRange(reference, timeZone)` call.** A range that is zoned and buckets that are not is the
+> bug, and it is silent — the minutes are not shown wrong, they are dropped.
+
+- **Buckets were UTC, bounds were local.** `$dateToString` without a `timezone` option formats in
+  UTC, so a 9 PM session in IST was keyed as tomorrow's date — a key outside the computed range, and
+  its minutes vanished. `$dateToString` now receives `timezone` via `dateToStringOptions(tz)`.
+- **Nobody knew the user's zone.** The server cannot; the browser can. `TimezoneSync` (in the root
+  layout) writes `Intl.DateTimeFormat().resolvedOptions().timeZone` to the `ticktock_tz` cookie, and
+  `lib/session.ts#getUserTimeZone` reads it back — validated, because a cookie is user-writable and a
+  bogus value would throw inside the aggregation. Fallback is the server's own zone, so the very
+  first request of a visit has no cookie to read — the two pages whose numbers are bucketed by zone
+  (`/`, `/analytics`) therefore pass the zone they resolved back to `TimezoneSync`, which calls
+  `router.refresh()` once if it differs from the browser's. One refresh, not a loop: after it the
+  cookie is present, so the zone matches. The root-layout instance stays prop-less on purpose —
+  reading the cookie there would make the static sign-in and sign-up pages dynamic.
+- **The subject and topic panels were all-time.** They sit under a "This Week" header, so a user with
+  months of history saw every subject mixed into the week view. Both now take an optional
+  `RangeFilter`, and the page passes the chart's own week.
+
+Day and week boundaries are computed with `Intl`, not a date library: `date-fns` has no IANA zone
+support, and hand-rolled offset tables go wrong on DST. `getDayRange` derives the end of a day from
+the start of the *next* day, so a spring-forward day is 23 hours rather than 24. `verify-e2e.ts`
+asserts the 23-hour case, the Kolkata-vs-UTC day split, and that the subject panel's total equals
+the chart's total for the same week.
 
 ---
 
 # V1 Principle
 
-The database should remain intentionally small.
-
-The core relationship is:
+The database should remain intentionally small. One app-owned collection is enough:
 
 ```text
                   SESSION
@@ -267,4 +291,5 @@ The core relationship is:
                       Outcome        Notes
 ```
 
-One table is enough for the first version.
+Potential future collections — `daily_goals`, `settings`, `session_pauses` — should only be
+introduced when an actual feature requires them.
