@@ -39,7 +39,7 @@ Measured live against the dev Turso database (not estimated):
 
 | Table | Rows | Nature |
 |---|---|---|
-| `user` | 2 | `rakesh`, `testuser` — both `@ticktock.local` |
+| `user` | 2 | `rakesh`, `testuser` — both `@ticktock.local` (pre-existing; new sign-ups use `@ticktock.invalid`, see ISSUES.md #16) |
 | `account` | 2 | credential rows for those two |
 | `session` | 10 | auth sessions, regenerate on next login |
 | `verification` | 0 | — |
@@ -64,6 +64,8 @@ created through `/signup` by hand, not by any script.
 ### 1.2 Why discarding is the right call
 
 - **No real users.** Both accounts are `@ticktock.local`. There is no genuine account to lose.
+  (Sign-ups created after the fix use `@ticktock.invalid` — a domain RFC 2606 reserves as
+  permanently unresolvable, where `.local` is only mDNS-reserved. See ISSUES.md #16.)
 - **19 rows.** A migration script for 19 rows is more code than the copy it performs.
 - **The loss is bounded and known:** 2 throwaway accounts and 5 completed sessions totalling
   under 15 hours. Recreating the accounts takes 60 seconds at `/signup`; recreating the

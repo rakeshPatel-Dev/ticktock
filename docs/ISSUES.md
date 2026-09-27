@@ -1,6 +1,6 @@
 # TickTock — Known Issues
 
-> Last updated: 2026-09-27. Issues #1–#8 and #11 are fixed; #9, #10, #12–#20 are open.
+> Last updated: 2026-09-27. Issues #1–#8, #11 and #16–#20 are fixed (#19 closed as not-a-bug); #9, #10, #12–#15 are open.
 
 This document catalogues bugs, design weaknesses, and missing features discovered during a code review of the TickTock codebase. Issues are grouped by severity.
 
@@ -258,75 +258,117 @@ are invisible on small screens.
 
 ---
 
-## 🔵 Low — code quality / maintainability
+## 🔵 Low — code quality / maintainability — four fixed, one closed as not-a-bug
 
-### 16. Fake email generated at signup leaks implementation detail into the database
+### 16. ~~Fake email generated at signup leaks implementation detail into the database~~ — FIXED (the premise was wrong)
 
 **File:** [`lib/auth-actions.ts` — `signupAction`](file:///home/patel/Projects/ticktock/lib/auth-actions.ts)
 
 ```ts
-email: `${username}@ticktock.local`,
+email: `${username}@ticktock.invalid`,
 ```
 
-`better-auth` requires an email for `signUpEmail`. The workaround of fabricating a local-domain
-email works but stores a meaningless value in the `user` collection. If a real email field is
-ever added (e.g. for password recovery), the synthetic email will collide with real ones.
+**The suggested fix is not available in this version of Better Auth.** It proposed "the username-only
+sign-up flow (the plugin supports it) or a separate `signUpUsername` endpoint". Neither exists:
+`node_modules/better-auth/dist/plugins/username/index.mjs` registers exactly two endpoints,
+`signInUsername` and `isUsernameAvailable`, while the core `signUpEmail` validates the address with
+`z.email()` and declares `email` / `emailVerified` required on the user model. A synthetic address is
+therefore structural, not a workaround, and removing it would mean forking the auth flow.
 
-**Suggested fix:** Use `better-auth`'s `username`-only sign-up flow (the plugin supports it)
-or add a separate `signUpUsername` endpoint so no fake email is required.
+What was actually wrong was the domain. `.local` is reserved by RFC 6762 for mDNS — it is a domain
+software will try to resolve and, unlike `.invalid`, try to accept mail for. `.invalid` is reserved by
+RFC 2606 as *guaranteed never to resolve*. It also closes the collision risk the issue raised: no real
+domain exists in that TLD, so a future real email feature cannot produce an address that clashes with
+a synthetic one, and the address is unique per user because the username is.
+
+The two throwaway accounts already in the database still carry `@ticktock.local`; only new sign-ups
+use the new domain.
 
 ---
 
-### 17. `nextCookies()` is used in both server-side auth (`lib/auth.ts`) and client-side auth (`lib/auth-client.ts`)
+### 17. ~~`nextCookies()` is used in both server-side auth and client-side auth~~ — FIXED
 
 **File:** [`lib/auth-client.ts`](file:///home/patel/Projects/ticktock/lib/auth-client.ts)
 
-`nextCookies` is a Next.js server plugin. Including it in the *client* `authClient` is
-unusual — the client bundle does not have access to Next.js's cookie APIs. This currently
-compiles without error, but it imports server-only code into the client bundle, increasing
-bundle size and potentially exposing server internals.
+`nextCookies` is the server-side cookie plugin and has no client-side job. Its only hook matches
+`ctx.path === "/get-session"`, and the cookie write it performs goes through `next/headers`, which it
+imports dynamically and swallows on failure. In a browser that path never matches, so the plugin could
+only ever drag `parseSetCookieHeader` / `toCookieOptions` across the client boundary.
 
-**Suggested fix:** Remove `nextCookies()` from the `authClient` plugins array; it is only
-needed on the server-side `auth` instance.
-
----
-
-### 18. `db/index.ts` is not guarded by `"server-only"`
-
-**File:** [`db/index.ts`](file:///home/patel/Projects/ticktock/db/index.ts)
-
-`lib/session.ts` correctly imports `"server-only"`, preventing accidental client-side imports.
-`db/index.ts` (which holds the MongoDB connection and collection references) does not, meaning
-a mistaken `import { studySessions } from "@/db"` in a Client Component would silently
-compile and only fail at runtime.
-
-**Suggested fix:** Add `import "server-only"` at the top of `db/index.ts`.
+Removed from `authClient`, with the reason in a comment. It stays in `lib/auth.ts`, which is the
+instance that serves `/get-session`.
 
 ---
 
-### 19. `proxy.ts` is committed but its purpose is undocumented
+### 18. ~~`db/index.ts` is not guarded by `"server-only"`~~ — FIXED
+
+**Files:** [`db/index.ts`](file:///home/patel/Projects/ticktock/db/index.ts), [`package.json`](file:///home/patel/Projects/ticktock/package.json)
+
+`db/index.ts` now imports `"server-only"`, so a Client Component that reaches for the collection
+handles is a build error instead of a runtime failure whose message contains a connection string.
+`db/indexes.ts` inherits the guard through its import of this module.
+
+**This needed a second change, which the issue did not anticipate.** The marker package resolves to a
+throwing entry under the default condition and to an empty module under `react-server` — the condition
+Next.js sets for server code. The three `tsx` scripts import this file, so without help they hit the
+throwing entry and died before doing any work. All three now run `tsx --conditions=react-server`, which
+is the same condition Next uses rather than a workaround for it:
+
+```
+db:indexes            tsx --conditions=react-server scripts/create-indexes.ts
+db:backfill-paused-at tsx --conditions=react-server scripts/backfill-paused-at.ts
+test:e2e              tsx --conditions=react-server scripts/verify-e2e.ts
+```
+
+**`db/schema.ts` is deliberately not marked.** Five client components import its types and
+`pauseAnchorSeconds` from it, and it holds no connection — only the connection and the collection
+handles live in `db/index.ts`.
+
+Verified by probe, not assumed: a temporary client component importing `@/db` fails the build with
+*"You're importing a module that depends on `server-only`"*, and the build passes without it.
+
+---
+
+### 19. ~~`proxy.ts` is committed but its purpose is undocumented~~ — CLOSED, not a bug
 
 **File:** [`proxy.ts`](file:///home/patel/Projects/ticktock/proxy.ts)
 
-A `proxy.ts` file exists at the project root but is not referenced by any `package.json`
-script, the Next.js config, or any other file. Its purpose is unclear.
+`proxy.ts` is the Next.js 16 successor to `middleware.ts`, and Next discovers it **by convention** —
+which is why the issue's evidence ("not referenced by any package.json script, the Next.js config, or
+any other file") found nothing: there is nothing to reference. The file matches the documented shape
+exactly — project root, `export function proxy(request: NextRequest)`, alongside `config.matcher`
+(`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`), and the build
+output lists it under *"ƒ Proxy (Middleware)"*.
 
-**Suggested fix:** Either document it (add a comment header explaining usage) or remove it
-if it is no longer needed.
+It is also already documented: a header comment states what it does, both Better Auth cookie names it
+accepts, and that it is *not* a substitute for per-action auth. That warning is the framework's own —
+the same page says to always verify authorization inside each Server Function, because a matcher change
+can silently remove Proxy coverage.
+
+No change made. Left as is deliberately.
 
 ---
 
-### 20. Inline `label` elements are not associated with their inputs via `htmlFor`
+### 20. ~~Inline `label` elements are not associated with their inputs via `htmlFor`~~ — FIXED
 
-**Files:** [`components/start-session.tsx#L117`](file:///home/patel/Projects/ticktock/components/start-session.tsx#L117), [`components/session-detail-modal.tsx#L131`](file:///home/patel/Projects/ticktock/components/session-detail-modal.tsx#L131), [`components/settings-view.tsx#L79`](file:///home/patel/Projects/ticktock/components/settings-view.tsx#L79)
+**Files:** [`components/start-session.tsx`](file:///home/patel/Projects/ticktock/components/start-session.tsx), [`components/session-detail-modal.tsx`](file:///home/patel/Projects/ticktock/components/session-detail-modal.tsx), [`components/session-form.tsx`](file:///home/patel/Projects/ticktock/components/session-form.tsx), [`components/settings-view.tsx`](file:///home/patel/Projects/ticktock/components/settings-view.tsx)
 
-Many `<label>` elements are adjacent to their inputs but do not use `htmlFor` / `id`
-associations. Screen readers and browser autofill behaviour depend on this association.
+Ten unassociated labels, wired with `useId()` as `login-form.tsx` and `account-card.tsx` already do:
+the three start-session fields, the five edit-modal fields, and the two settings fields. The issue named
+three of the four files and missed `session-form.tsx`; `signup-form.tsx` was already correct.
 
-**Impact:** Reduced accessibility; clicking a label may not focus the corresponding input.
+**Two of them were not field labels, and `htmlFor` would have been the wrong fix.** "Appearance" and
+"What did you accomplish?" name a *set* of toggles, not one control. Pointing a `<label>` at the first
+button in a set labels only that button and misleads a screen reader about the rest. Both became a
+labelled group instead — the visible text keeps its styling as a `<span id>`, the container takes
+`role="group"` + `aria-labelledby`, and the toggles take `aria-pressed` so the selection is announced
+rather than conveyed by background colour alone.
 
-**Suggested fix:** Add `useId()` to generate stable IDs and wire them up with `htmlFor`/`id`, as
-already done correctly in `login-form.tsx`.
+Also in `settings-view.tsx`, while the field was already open: the goal input had `aria-invalid` with
+nothing describing *why* it was invalid. The error `<p>` now has an `id` that the input points at with
+`aria-describedby`, and `role="alert"` so a rejected value is announced when it appears.
+
+Checked mechanically afterwards: every `<label>` in `app/` and `components/` now resolves to a control.
 
 ---
 

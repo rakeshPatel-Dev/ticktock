@@ -90,6 +90,7 @@ Turso "no such table: user" blocker and a `npm run db:push` fix; both are obsole
    `BETTER_AUTH_URL`.
 
 2. **No data was migrated.** The old database held 19 rows: 2 throwaway `@ticktock.local`
+   (new sign-ups use `@ticktock.invalid` — see ISSUES.md #16)
    accounts and 5 completed study sessions (14h 48m, subjects Complete Java / OB & HRM /
    Discrete Structure / Digital Logic). MongoDB starts empty. Recreate the account at
    `/signup`; the 5 sessions are re-typable from the export if they matter.
