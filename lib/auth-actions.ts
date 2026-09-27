@@ -8,13 +8,30 @@ import { auth } from "@/lib/auth";
 
 export type AuthActionState = { error?: string; success?: string } | undefined;
 
+/**
+ * Canonical username form. `.toLowerCase()` runs before the regex and before the
+ * length checks, so `RaKeSh`, `  RaKeSh  ` and `rakesh` all resolve to the single
+ * value `rakesh`.
+ *
+ * This is what makes the `user_username_idx` unique index mean what a user expects
+ * it to mean. That index is a plain binary index and therefore case-SENSITIVE —
+ * verified against a live cluster, `rakesh`, `Rakesh` and `RAKESH` were all accepted
+ * side by side. Nothing in Better Auth lowercases a username (it lowercases email in
+ * a few places, never username), so the normalisation has to happen here or not at
+ * all. Storing one canonical form keeps signup, login and the database in agreement.
+ *
+ * Consequence: a username that is somehow stored mixed-case (e.g. written by the
+ * auth HTTP API, which bypasses this schema) becomes unloginable, because login
+ * normalises the input and will never match the stored value.
+ */
 const usernameSchema = z
   .string()
   .trim()
+  .toLowerCase()
   .min(3, "Username must be at least 3 characters.")
   .max(30, "Username must be 30 characters or fewer.")
   .regex(
-    /^[a-zA-Z0-9_.-]+$/,
+    /^[a-z0-9_.-]+$/,
     "Usernames can only contain letters, numbers, dots, dashes and underscores."
   );
 
@@ -22,13 +39,13 @@ export async function loginAction(
   _prev: AuthActionState,
   formData: FormData
 ): Promise<AuthActionState> {
-  const username = String(formData.get("username") || "").trim();
-  const password = String(formData.get("password") || "");
-
-  const parsed = usernameSchema.safeParse(username);
+  const parsed = usernameSchema.safeParse(String(formData.get("username") || ""));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message };
   }
+  const username = parsed.data;
+  const password = String(formData.get("password") || "");
+
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters." };
   }
@@ -53,14 +70,14 @@ export async function signupAction(
   _prev: AuthActionState,
   formData: FormData
 ): Promise<AuthActionState> {
-  const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
 
-  const parsed = usernameSchema.safeParse(username);
+  const parsed = usernameSchema.safeParse(String(formData.get("username") || ""));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message };
   }
+  const username = parsed.data;
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters." };
   }
@@ -111,12 +128,11 @@ export async function updateUsernameAction(
   _prev: AuthActionState,
   formData: FormData
 ): Promise<AuthActionState> {
-  const username = String(formData.get("username") || "").trim();
-
-  const parsed = usernameSchema.safeParse(username);
+  const parsed = usernameSchema.safeParse(String(formData.get("username") || ""));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message };
   }
+  const username = parsed.data;
 
   try {
     const h = await headers();
