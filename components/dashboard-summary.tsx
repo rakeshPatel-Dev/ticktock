@@ -10,19 +10,21 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
+import { useDailyGoalHours } from "@/lib/daily-goal";
 import { cn } from "@/lib/utils";
 import { SessionDetailModal } from "./session-detail-modal";
 
 interface DashboardSummaryProps {
   summary: DashboardSummary;
-  dailyGoalHours?: number;
 }
 
-export function DashboardSummaryView({
-  summary,
-  dailyGoalHours = 4,
-}: DashboardSummaryProps) {
+export function DashboardSummaryView({ summary }: DashboardSummaryProps) {
   const [selectedSession, setSelectedSession] = React.useState<StudySession | null>(null);
+  // The goal the user actually saved, not a hard-coded 4. The default is the
+  // value for the first paint — and for every user who never set one — because
+  // localStorage is unreadable during SSR; the effect inside the hook swaps in
+  // the stored value a frame later.
+  const { hours: dailyGoalHours } = useDailyGoalHours();
 
   const goalSeconds = dailyGoalHours * 3600;
   const progressPercent = Math.min(

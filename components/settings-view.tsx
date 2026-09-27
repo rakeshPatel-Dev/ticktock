@@ -22,28 +22,47 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { clearAllSessions } from "@/lib/actions";
+import {
+  useDailyGoalHours,
+  MAX_DAILY_GOAL_HOURS,
+  MIN_DAILY_GOAL_HOURS,
+  parseDailyGoalHours,
+} from "@/lib/daily-goal";
 import { AccountCard } from "@/components/account-card";
 
 export function SettingsView({ username }: { username: string }) {
   const { theme, setTheme } = useTheme();
-  const [dailyGoal, setDailyGoal] = React.useState("4");
+  // One source of truth for the goal, shared with the dashboard. The settings
+  // form used to write `ticktock_daily_goal_hours` itself while the dashboard
+  // never read it, so a saved goal did nothing anywhere.
+  const { hours: savedGoalHours, setHours: saveDailyGoalHours } = useDailyGoalHours();
+  const [dailyGoal, setDailyGoal] = React.useState(String(savedGoalHours));
+  const [goalError, setGoalError] = React.useState<string | null>(null);
   const [savedGoal, setSavedGoal] = React.useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = React.useState(false);
   const [resetConfirmText, setResetConfirmText] = React.useState("");
   const [isResetting, setIsResetting] = React.useState(false);
   const [resetSuccess, setResetSuccess] = React.useState(false);
 
+  // Re-sync when the goal changes underneath this form (another tab saving it).
+  // Typing is unaffected: the value only changes on a real save.
   React.useEffect(() => {
-    const stored = localStorage.getItem("ticktock_daily_goal_hours");
-    if (stored) {
-      setDailyGoal(stored);
-    }
-  }, []);
+    setDailyGoal(String(savedGoalHours));
+  }, [savedGoalHours]);
 
   const handleSaveGoal = () => {
-    const val = parseFloat(dailyGoal);
-    if (isNaN(val) || val <= 0) return;
-    localStorage.setItem("ticktock_daily_goal_hours", val.toString());
+    const parsed = parseDailyGoalHours(dailyGoal);
+    if (parsed === null) {
+      setGoalError(
+        `Enter a number between ${MIN_DAILY_GOAL_HOURS} and ${MAX_DAILY_GOAL_HOURS} hours.`
+      );
+      return;
+    }
+    if (!saveDailyGoalHours(parsed)) {
+      setGoalError("Could not save the goal. Browser storage may be blocked.");
+      return;
+    }
+    setGoalError(null);
     setSavedGoal(true);
     setTimeout(() => setSavedGoal(false), 2000);
   };
@@ -86,11 +105,15 @@ export function SettingsView({ username }: { username: string }) {
             <div className="flex items-center gap-2.5">
               <Input
                 type="number"
-                min="0.5"
-                max="24"
+                min={MIN_DAILY_GOAL_HOURS}
+                max={MAX_DAILY_GOAL_HOURS}
                 step="0.5"
                 value={dailyGoal}
-                onChange={(e) => setDailyGoal(e.target.value)}
+                onChange={(e) => {
+                  setDailyGoal(e.target.value);
+                  setGoalError(null);
+                }}
+                aria-invalid={goalError ? true : undefined}
                 className="w-24 font-mono text-center rounded-full text-base h-11 mt-1"
               />
               <span className="text-sm font-semibold text-muted-foreground">hours</span>
@@ -111,6 +134,9 @@ export function SettingsView({ username }: { username: string }) {
               </Button>
             </div>
           </div>
+          {goalError && (
+            <p className="text-sm font-medium text-destructive">{goalError}</p>
+          )}
 
           {/* Theme */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
