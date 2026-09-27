@@ -42,6 +42,11 @@ export function SessionDetailModal({
   const [subject, setSubject] = React.useState("");
   const [topic, setTopic] = React.useState("");
   const [goal, setGoal] = React.useState("");
+  const subjectFieldId = React.useId();
+  const topicFieldId = React.useId();
+  const goalFieldId = React.useId();
+  const outcomeFieldId = React.useId();
+  const notesFieldId = React.useId();
   const [outcome, setOutcome] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
@@ -166,16 +171,18 @@ export function SessionDetailModal({
         ) : isEditing ? (
           <div className="space-y-3.5 py-2 text-left">
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">Subject</label>
+              <label htmlFor={subjectFieldId} className="text-sm font-semibold text-foreground">Subject</label>
               <Input
+                id={subjectFieldId}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="h-11 rounded-full text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">Topic</label>
+              <label htmlFor={topicFieldId} className="text-sm font-semibold text-foreground">Topic</label>
               <Input
+                id={topicFieldId}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 className="h-11 rounded-full text-sm"
@@ -191,8 +198,9 @@ export function SessionDetailModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">Goal</label>
+              <label htmlFor={goalFieldId} className="text-sm font-semibold text-foreground">Goal</label>
               <Input
+                id={goalFieldId}
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
                 placeholder="e.g. Read 20 pages, finish chapter"
@@ -200,16 +208,18 @@ export function SessionDetailModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">Outcome</label>
+              <label htmlFor={outcomeFieldId} className="text-sm font-semibold text-foreground">Outcome</label>
               <Input
+                id={outcomeFieldId}
                 value={outcome}
                 onChange={(e) => setOutcome(e.target.value)}
                 className="h-11 rounded-full text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">Notes</label>
+              <label htmlFor={notesFieldId} className="text-sm font-semibold text-foreground">Notes</label>
               <Textarea
+                id={notesFieldId}
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}

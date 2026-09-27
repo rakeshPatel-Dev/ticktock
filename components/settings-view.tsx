@@ -43,6 +43,9 @@ export function SettingsView({ username }: { username: string }) {
   const [resetConfirmText, setResetConfirmText] = React.useState("");
   const [isResetting, setIsResetting] = React.useState(false);
   const [resetSuccess, setResetSuccess] = React.useState(false);
+  const goalFieldId = React.useId();
+  const goalErrorId = React.useId();
+  const appearanceGroupId = React.useId();
 
   // Re-sync when the goal changes underneath this form (another tab saving it).
   // Typing is unaffected: the value only changes on a real save.
@@ -95,7 +98,7 @@ export function SettingsView({ username }: { username: string }) {
           {/* Daily Goal */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-b border-border/40 pb-4">
             <div className="space-y-0.5">
-              <label className="text-base font-semibold text-foreground">
+              <label htmlFor={goalFieldId} className="text-base font-semibold text-foreground">
                 Daily Focus Goal
               </label>
               <p className="text-sm  mt-1 text-muted-foreground">
@@ -104,7 +107,9 @@ export function SettingsView({ username }: { username: string }) {
             </div>
             <div className="flex items-center gap-2.5">
               <Input
+                id={goalFieldId}
                 type="number"
+                inputMode="decimal"
                 min={MIN_DAILY_GOAL_HOURS}
                 max={MAX_DAILY_GOAL_HOURS}
                 step="0.5"
@@ -114,6 +119,7 @@ export function SettingsView({ username }: { username: string }) {
                   setGoalError(null);
                 }}
                 aria-invalid={goalError ? true : undefined}
+                aria-describedby={goalError ? goalErrorId : undefined}
                 className="w-24 font-mono text-center rounded-full text-base h-11 mt-1"
               />
               <span className="text-sm font-semibold text-muted-foreground">hours</span>
@@ -135,23 +141,33 @@ export function SettingsView({ username }: { username: string }) {
             </div>
           </div>
           {goalError && (
-            <p className="text-sm font-medium text-destructive">{goalError}</p>
+            <p id={goalErrorId} role="alert" className="text-sm font-medium text-destructive">
+              {goalError}
+            </p>
           )}
 
           {/* Theme */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
             <div className="space-y-0.5">
-              <label className="text-base font-semibold text-foreground">
+              <span
+                id={appearanceGroupId}
+                className="text-base font-semibold text-foreground"
+              >
                 Appearance
-              </label>
+              </span>
               <p className="text-sm  mt-1 text-muted-foreground">
                 Choose light, dark, or follow system theme.
               </p>
             </div>
-            <div className="flex items-center gap-1.5 bg-muted/60 p-1.5 rounded-full border border-border/50">
+            <div
+              role="group"
+              aria-labelledby={appearanceGroupId}
+              className="flex items-center gap-1.5 bg-muted/60 p-1.5 rounded-full border border-border/50"
+            >
               <Button
                 variant={theme === "light" ? "secondary" : "ghost"}
                 size="sm"
+                aria-pressed={theme === "light"}
                 onClick={() => setTheme("light")}
                 className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
               >
@@ -160,6 +176,7 @@ export function SettingsView({ username }: { username: string }) {
               <Button
                 variant={theme === "dark" ? "secondary" : "ghost"}
                 size="sm"
+                aria-pressed={theme === "dark"}
                 onClick={() => setTheme("dark")}
                 className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
               >
@@ -168,6 +185,7 @@ export function SettingsView({ username }: { username: string }) {
               <Button
                 variant={theme === "system" ? "secondary" : "ghost"}
                 size="sm"
+                aria-pressed={theme === "system"}
                 onClick={() => setTheme("system")}
                 className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
               >

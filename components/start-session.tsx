@@ -40,6 +40,9 @@ export function StartSessionModal({
   const [goal, setGoal] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const subjectFieldId = React.useId();
+  const topicFieldId = React.useId();
+  const goalFieldId = React.useId();
 
   const subjectInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -111,10 +114,11 @@ export function StartSessionModal({
           )}
 
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-foreground">
+            <label htmlFor={subjectFieldId} className="text-sm font-semibold text-foreground">
               Subject <span className="text-destructive">*</span>
             </label>
             <Input
+              id={subjectFieldId}
               ref={subjectInputRef}
               placeholder="e.g. Writing, Biology, Design, Piano, Study"
               value={subject}
@@ -151,10 +155,11 @@ export function StartSessionModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-foreground">
+            <label htmlFor={topicFieldId} className="text-sm font-semibold text-foreground">
               Topic <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <Input
+              id={topicFieldId}
               placeholder="e.g. Chapter 4, Draft outline, Presentation"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -164,10 +169,11 @@ export function StartSessionModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-foreground">
+            <label htmlFor={goalFieldId} className="text-sm font-semibold text-foreground">
               Goal <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <Input
+              id={goalFieldId}
               placeholder="e.g. Write 1,000 words, read 20 pages, review notes"
               value={goal}
               onChange={(e) => setGoal(e.target.value)}

@@ -44,6 +44,8 @@ export function FinishSessionModal({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [celebrating, setCelebrating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const notesFieldId = React.useId();
+  const outcomeGroupId = React.useId();
 
   // A failure belongs to one attempt, not to the next time this opens.
   React.useEffect(() => {
@@ -133,19 +135,27 @@ export function FinishSessionModal({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">
+                <span
+                  id={outcomeGroupId}
+                  className="text-sm font-semibold text-foreground"
+                >
                   What did you accomplish?{" "}
                   <span className="text-muted-foreground font-normal">
                     (optional)
                   </span>
-                </label>
-                <div className="grid grid-cols-2 mt-1 sm:grid-cols-3 gap-2">
+                </span>
+                <div
+                  role="group"
+                  aria-labelledby={outcomeGroupId}
+                  className="grid grid-cols-2 mt-1 sm:grid-cols-3 gap-2"
+                >
                   {OUTCOME_OPTIONS.map((opt) => {
                     const isSelected = outcome === opt.label;
                     return (
                       <button
                         key={opt.label}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() =>
                           setOutcome(isSelected ? null : opt.label)
                         }
@@ -164,13 +174,14 @@ export function FinishSessionModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-foreground">
+                <label htmlFor={notesFieldId} className="text-sm font-semibold text-foreground">
                   Notes{" "}
                   <span className="text-muted-foreground font-normal">
                     (optional)
                   </span>
                 </label>
                 <Textarea
+                  id={notesFieldId}
                   placeholder="Key takeaways, thoughts, or next steps..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
