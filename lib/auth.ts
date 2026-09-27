@@ -1,18 +1,26 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
-import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { username } from "better-auth/plugins";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { db } from "@/db";
-import * as schema from "@/db/schema";
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
-  database: drizzleAdapter(db, {
-    provider: "sqlite",
-    schema,
-  }),
+  // `client` is deliberately not passed: doing so makes the adapter wrap
+  // operations in Mongo transactions, which require a replica set. This app has
+  // no transactions, and a bare local `mongod` is not one.
+  database: mongodbAdapter(db, { usePlural: false }),
+  advanced: {
+    database: {
+      // A *function* here makes the mongo adapter skip all ObjectId/UUID coercion
+      // of `_id` and of fields referencing `id`, so every auth `_id` stays a
+      // string. Matches `crypto.randomUUID()` in lib/actions.ts, so auth IDs and
+      // study-session IDs share one convention.
+      generateId: () => crypto.randomUUID(),
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
