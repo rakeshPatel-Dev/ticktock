@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { TimezoneSync } from "@/components/timezone-sync";
 import { Navbar } from "@/components/navbar";
 
 const geistSans = Geist({
@@ -50,6 +51,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
+            <TimezoneSync />
             <Navbar />
             <main className="flex-1 container mx-auto max-w-5xl px-4 pt-6 pb-24 sm:pb-6">
               {children}

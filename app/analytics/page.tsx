@@ -3,17 +3,29 @@ import {
   getSubjectAnalytics,
   getTopicAnalytics,
 } from "@/lib/queries";
-import { requireUser } from "@/lib/session";
+import { getUserTimeZone, requireUser } from "@/lib/session";
+import { getWeekRange } from "@/lib/timezone";
 import { AnalyticsView } from "@/components/analytics-view";
+import { TimezoneSync } from "@/components/timezone-sync";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
   const user = await requireUser();
+  const timeZone = await getUserTimeZone();
+
+  // One week, one zone, three queries. The subject and topic panels sit under a
+  // "This Week" header, so they have to answer for this week — passing them an
+  // all-time range is how the panels and the cards above them ended up
+  // describing different datasets.
+  const reference = new Date();
+  const week = getWeekRange(reference, timeZone);
+  const range = { from: week.from, to: week.to };
+
   const [dailyMetrics, subjectMetrics, topicMetrics] = await Promise.all([
-    getDailyAnalytics(user.id),
-    getSubjectAnalytics(user.id),
-    getTopicAnalytics(user.id),
+    getDailyAnalytics(user.id, reference, timeZone),
+    getSubjectAnalytics(user.id, range),
+    getTopicAnalytics(user.id, range),
   ]);
 
   const totalWeeklySeconds = dailyMetrics.reduce(
@@ -50,6 +62,10 @@ export default async function AnalyticsPage() {
           Understand where your focus and study time goes with clear, honest data.
         </p>
       </div>
+
+      {/* Every number on this page is bucketed by the user's zone, so a first
+          visit rendered in the server's fallback zone needs one re-render. */}
+      <TimezoneSync serverTimeZone={timeZone} />
 
       <AnalyticsView
         dailyMetrics={dailyMetrics}
