@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { Play, Pause, Square, Maximize2, Minimize2 } from "lucide-react";
-import { type StudySession } from "@/db/schema";
+import { pauseAnchorSeconds, type StudySession } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { pauseSession, resumeSession } from "@/lib/actions";
 import { formatTimerDisplay } from "@/lib/timer";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/shortcuts";
 import { StartSessionModal } from "./start-session";
 import { FinishSessionModal } from "./session-form";
+import { describeActionError } from "@/lib/action-errors";
 import { cn } from "@/lib/utils";
 
 const startShortcut = getShortcut("start");
@@ -38,12 +39,33 @@ function computeCurrentElapsed(session: StudySession | null): number {
     const raw = Math.max(0, nowF - session.startedAt);
     return Math.max(0, raw - session.pausedSeconds);
   } else if (session.status === "paused") {
-    // Paused: use server-recorded updatedAt (integer seconds) — exact
-    const raw = Math.max(0, session.updatedAt - session.startedAt);
+    // Paused: use the server-recorded pause anchor (integer seconds) — exact.
+    // Deliberately not `updatedAt`: a note edited mid-pause moved that field
+    // and made the clock jump forward by the time between pausing and editing.
+    const pausedAt = pauseAnchorSeconds(session);
+    const raw = Math.max(0, (pausedAt ?? session.startedAt) - session.startedAt);
     return Math.max(0, raw - session.pausedSeconds);
   }
   // Finished: durationSeconds is the authoritative recorded value
   return session.durationSeconds;
+}
+
+/**
+ * A failed pause/resume, announced to screen readers rather than left as a
+ * silent colour change on a button. Rendered in both the normal and the
+ * fullscreen view — the fullscreen one is a separate branch of the tree, and
+ * an error that only exists in the layout you left is an error you never see.
+ */
+function ActionErrorBanner({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <p
+      role="alert"
+      className="mx-auto max-w-md rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-2.5 text-sm font-medium leading-relaxed text-destructive"
+    >
+      {message}
+    </p>
+  );
 }
 
 export function Timer({ initialSession, subjects = [] }: TimerProps) {
@@ -57,6 +79,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
   const [isStarting, setIsStarting] = React.useState(false);
   const [isFullScreen, setIsFullScreen] = React.useState(false);
   const [actionLoading, setActionLoading] = React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
 
   // Sync with prop when server revalidates
   React.useEffect(() => {
@@ -97,19 +120,51 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
+  // Dismiss a failed action's message on its own: it describes one event, and
+  // a timer that is still running is not the place for a permanent banner.
+  React.useEffect(() => {
+    if (!actionError) return;
+    const timer = setTimeout(() => setActionError(null), 6000);
+    return () => clearTimeout(timer);
+  }, [actionError]);
+
+  // Pause and resume are applied optimistically so the button feels instant,
+  // which means the optimistic value has to be undone when the server refuses.
+  // Without this the timer reads "Paused" while the row in Mongo still says
+  // "active", and the duration keeps accruing where the user cannot see it.
   const handlePause = React.useCallback(async () => {
     if (!session || actionLoading) return;
     setActionLoading(true);
-    setSession((prev) => (prev ? { ...prev, status: "paused" } : null));
-    await pauseSession(session.id);
+    setActionError(null);
+    const previous = session;
+    setSession({ ...previous, status: "paused" });
+
+    const res = await pauseSession(previous.id);
+
+    if (!res.success) {
+      setSession(previous);
+      setActionError(
+        describeActionError(res.error, "Could not pause the timer. Still running.")
+      );
+    }
     setActionLoading(false);
   }, [session, actionLoading]);
 
   const handleResume = React.useCallback(async () => {
     if (!session || actionLoading) return;
     setActionLoading(true);
-    setSession((prev) => (prev ? { ...prev, status: "active" } : null));
-    await resumeSession(session.id);
+    setActionError(null);
+    const previous = session;
+    setSession({ ...previous, status: "active" });
+
+    const res = await resumeSession(previous.id);
+
+    if (!res.success) {
+      setSession(previous);
+      setActionError(
+        describeActionError(res.error, "Could not resume the timer. Still paused.")
+      );
+    }
     setActionLoading(false);
   }, [session, actionLoading]);
 
@@ -349,6 +404,8 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               </Button>
             </div>
 
+            <ActionErrorBanner message={actionError} />
+
             {/* Shortcut hint */}
             <p className={`${shortcutHintClass("pauseResume", "finish", "toggleFullScreen")} text-sm text-muted-foreground/80 font-medium`}>
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
@@ -493,6 +550,8 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 Finish
               </Button>
             </div>
+
+            <ActionErrorBanner message={actionError} />
           </div>
 
           {/* Bottom Shortcut bar */}
