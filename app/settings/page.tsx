@@ -1,16 +1,13 @@
-import { requireUser } from "@/lib/session";
-import { SettingsView } from "@/components/settings-view";
-import type { auth } from "@/lib/auth";
+import { Suspense } from "react";
+import { SettingsStream } from "@/components/settings-stream";
+import { SettingsSkeleton } from "@/components/skeletons";
 
 export const metadata = {
   title: "Settings - TickTock",
   description: "TickTock preferences and data management.",
 };
 
-export default async function SettingsPage() {
-  const user = await requireUser();
-  const username = (user as typeof auth.$Infer.Session.user & { username?: string }).username ?? user.name;
-
+export default function SettingsPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12 w-full">
       <div className="space-y-1">
@@ -22,7 +19,9 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      <SettingsView username={username} />
+      <Suspense fallback={<SettingsSkeleton />}>
+        <SettingsStream />
+      </Suspense>
     </div>
   );
 }

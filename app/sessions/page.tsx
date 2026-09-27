@@ -1,16 +1,10 @@
-import { getSessions, getAllSubjects } from "@/lib/queries";
-import { requireUser } from "@/lib/session";
-import { SessionListView } from "@/components/session-list";
+import { Suspense } from "react";
+import { SessionsStream } from "@/components/sessions-stream";
+import { SessionsSkeleton } from "@/components/skeletons";
 
 export const dynamic = "force-dynamic";
 
-export default async function SessionsPage() {
-  const user = await requireUser();
-  const [sessionsList, subjects] = await Promise.all([
-    getSessions(user.id),
-    getAllSubjects(user.id),
-  ]);
-
+export default function SessionsPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12 w-full">
       <div className="space-y-1">
@@ -22,10 +16,9 @@ export default async function SessionsPage() {
         </p>
       </div>
 
-      <SessionListView
-        initialSessions={sessionsList}
-        subjects={subjects}
-      />
+      <Suspense fallback={<SessionsSkeleton />}>
+        <SessionsStream />
+      </Suspense>
     </div>
   );
 }

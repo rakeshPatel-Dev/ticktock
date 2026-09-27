@@ -1,29 +1,31 @@
-import { getDashboardSummary, getAllSubjects } from "@/lib/queries";
-import { getUserTimeZone, requireUser } from "@/lib/session";
-import { Timer } from "@/components/timer";
-import { DashboardSummaryView } from "@/components/dashboard-summary";
-import { TimezoneSync } from "@/components/timezone-sync";
+import { Suspense } from "react";
+import { SummaryStream, TimerStream } from "@/components/dashboard-stream";
+import {
+  SummarySkeleton,
+  TimerSkeleton,
+} from "@/components/skeletons";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const user = await requireUser();
-  // "Today" is the user's midnight, not the server's — see lib/timezone.ts.
-  const timeZone = await getUserTimeZone();
-  const summary = await getDashboardSummary(user.id, new Date(), timeZone);
-  const subjects = await getAllSubjects(user.id);
-
+/**
+ * Synchronous on purpose.
+ *
+ * This component awaits nothing, so it produces the route's static shell and
+ * Next flushes it on the first render pass — heading, nav and both skeletons.
+ * The queries live in the two streams behind their own boundaries and stream in
+ * independently. Awaiting here instead is what made every navigation feel
+ * frozen: the browser got no bytes at all until the last query resolved.
+ */
+export default function DashboardPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-12 w-full">
-      {/* Re-renders this page once if the numbers above were computed in the
-          server's fallback zone because this was the user's first request. */}
-      <TimezoneSync serverTimeZone={timeZone} />
+      <Suspense fallback={<TimerSkeleton />}>
+        <TimerStream />
+      </Suspense>
 
-      {/* Active Timer or Idle Section */}
-      <Timer initialSession={summary.activeSession} subjects={subjects} />
-
-      {/* Today's Summary, Progress, & Recent Sessions */}
-      <DashboardSummaryView summary={summary} />
+      <Suspense fallback={<SummarySkeleton />}>
+        <SummaryStream />
+      </Suspense>
     </div>
   );
 }
