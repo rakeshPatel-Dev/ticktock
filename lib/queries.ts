@@ -13,7 +13,7 @@ import {
   getWeekRange,
   SERVER_TIME_ZONE,
 } from "@/lib/timezone";
-import { normalizeSubject } from "@/lib/subjects";
+import { normalizeSubject, subjectKey } from "@/lib/subjects";
 
 /** Epoch-second bounds. Absent fields mean "unbounded on that side". */
 export interface RangeFilter {
@@ -27,7 +27,12 @@ export interface DashboardSummary {
   subjectCount: number;
   longestSessionSeconds: number;
   recentSessions: StudySession[];
-  activeSession: StudySession | null;
+  /**
+   * Only populated when `includeActiveSession` is left on. The dashboard's
+   * Timer reads it from its own stream boundary instead, so the summary stream
+   * turns it off and skips a second identical read.
+   */
+  activeSession?: StudySession | null;
 }
 
 export interface DailyMetric {
@@ -51,35 +56,75 @@ export interface TopicMetric {
 }
 
 /**
- * `subject` folded the way `lib/subjects.ts#subjectKey` folds it, but as an
- * aggregation expression so the SERVER does the folding. Applied at read time on
- * purpose: it merges the "Python" and "python" documents that already exist
- * instead of only the ones written after normalisation landed, which would leave
- * every historical duplicate in place.
+ * `subject` folded the way `lib/subjects.ts#subjectKey` folds it, but as far as
+ * the aggregation pipeline is able to. Applied at read time on purpose: it merges
+ * the "Python" and "python" documents that already exist instead of only the ones
+ * written after normalisation landed, which would leave every historical
+ * duplicate in place.
  *
- * The operator is `$replaceAll` with a `find` regex — `$trim` on its own only
- * strips the ends, and a pasted "Data  Structures" would keep the double space
- * that forks the group.
+ * This is `$trim` + `$toLower` and nothing more, and the ceiling is the server's,
+ * not a choice. An earlier version reached for `$replaceAll` with a `find`
+ * regex to squash internal whitespace runs; `$replaceAll` rejects that outright
+ * — `find` must be a *string*, and it is a literal replace, not a pattern
+ * replace, so there is no regex form of it to fall back on:
  *
- * Casing is dropped only in the key. What the user reads stays their casing,
- * carried alongside through the display variant of the same expression.
+ *   $replaceAll requires that 'find' be a string, found: /\s+/s   (code 51745)
+ *
+ * The only reason this ever looked healthy is that the pipeline short-circuits
+ * on an empty collection: a user with no sessions never evaluates the
+ * expression, so the throw stayed hidden until their first session — at which
+ * point the dashboard, the whole analytics page and the subject filter all
+ * failed at once.
+ *
+ * So the two halves of the fold are split across the boundary. `$trim` and
+ * `$toLower` run server-side, where they are cheap, indexed and correct for
+ * leading/trailing whitespace and for casing. Collapsing *internal* runs needs
+ * the full `subjectKey`, so it runs in JS on the already-grouped rows — of which
+ * there is one per distinct trimmed subject, not one per session. `mergeFolded`
+ * below does that re-group, and every caller that groups by a folded key uses it.
  */
 function foldTextExpression(
   field: string,
   lower: boolean
 ): Record<string, unknown> {
-  const collapsed = {
-    $trim: {
-      input: { $replaceAll: { input: `$${field}`, find: /\s+/g, replacement: " " } },
-    },
-  };
-  return lower ? { $toLower: collapsed } : collapsed;
+  const trimmed = { $trim: { input: `$${field}` } };
+  return lower ? { $toLower: trimmed } : trimmed;
 }
 
 const subjectKeyExpression = foldTextExpression("subject", true);
 const subjectDisplayExpression = foldTextExpression("subject", false);
 const topicKeyExpression = foldTextExpression("topic", true);
 const topicDisplayExpression = foldTextExpression("topic", false);
+
+/**
+ * Second half of the fold described on `foldTextExpression`: merges rows the
+ * server could only trim and lower-case, using the full `subjectKey` so that
+ * "Data  Structures" and "Data Structures" become one subject.
+ *
+ * The input is an aggregation's `$group` output, so it already holds one row per
+ * distinct trimmed/lowered subject — the size of the subject vocabulary, not the
+ * size of the session history. That is what makes doing the rest of the fold in
+ * JS affordable.
+ *
+ * Order is first-seen-wins, which preserves the `$first` display spelling the
+ * aggregation chose (it sorts by `startedAt` descending, so the newest
+ * spelling of a merged subject is the one the user sees). `onMerge` folds the
+ * source row's totals into the row that is being kept.
+ */
+function mergeFolded<T>(
+  rows: T[],
+  keyOf: (row: T) => string,
+  onMerge: (kept: T, extra: T) => void
+): T[] {
+  const byKey = new Map<string, T>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const kept = byKey.get(key);
+    if (kept) onMerge(kept, row);
+    else byKey.set(key, row);
+  }
+  return Array.from(byKey.values());
+}
 
 /**
  * Returns the currently active or paused session for a user, if any.
@@ -105,6 +150,31 @@ export async function getSessionById(
   const doc = await studySessions.findOne({ _id: id, userId });
 
   return doc ? toStudySession(doc) : null;
+}
+
+/**
+ * Hard ceiling on how much history a single `/sessions` load will pull.
+ *
+ * The list filters, searches and date-ranges entirely on the client, so the
+ * page used to ship every session the user has ever logged. That is fine at
+ * twenty rows and quadratic-ish in payload and hydration cost at twenty
+ * thousand. The cap is set well above a realistic study history so it is
+ * invisible in normal use, and `SessionsStream` fetches one extra row to detect
+ * that it was hit and tell the user, rather than quietly showing them a
+ * truncated history that looks complete.
+ */
+export const SESSION_HISTORY_LIMIT = 250;
+
+/**
+ * Exact number of sessions a user has, ignoring `SESSION_HISTORY_LIMIT`.
+ *
+ * `countDocuments` rather than `estimatedDocumentCount`: the estimate reads
+ * collection metadata, can be stale after deletes, and this number is shown to
+ * the user as the true size of their history. It is only ever called on the
+ * rare request where the cap was actually reached.
+ */
+export async function getSessionCount(userId: string): Promise<number> {
+  return studySessions.countDocuments({ userId });
 }
 
 /**
@@ -137,19 +207,22 @@ export async function getSessions(
   }
 
   if (options?.subject && options.subject !== "all") {
-    // Case-insensitive AND whitespace-insensitive, folded server-side with the
-    // same expression the analytics group by. An exact `subject: "python"`
-    // matches nothing the moment the stored row says "Python", and a JS-side
-    // `===` filter would agree with the wrong half of the list. Escaped so a
-    // subject called "C++" or "a.b" cannot inject regex syntax.
+    // Case-insensitive AND whitespace-insensitive. The server can only `$trim`
+    // (see `foldTextExpression`), so the pattern is what absorbs the internal
+    // whitespace difference: every literal space becomes `\s+`, which matches
+    // "Data Structures" and "Data  Structures" alike while still refusing
+    // "Data Structures Advanced". An exact `subject: "python"` matches nothing
+    // the moment the stored row says "Python", and a JS-side `===` filter would
+    // agree with the wrong half of the list. Escaped so a subject called "C++"
+    // or "a.b" cannot inject regex syntax.
     const pattern = new RegExp(
-      `^${escapeRegex(normalizeSubject(options.subject))}$`,
+      `^${escapeRegex(normalizeSubject(options.subject)).replace(/ /g, "\\s+")}$`,
       "i"
     );
     conditions.push({
       $expr: {
         $regexMatch: {
-          input: subjectKeyExpression,
+          input: { $trim: { input: "$subject" } },
           regex: pattern.source,
           options: "i",
         },
@@ -206,17 +279,27 @@ export async function getAllSubjects(userId: string): Promise<string[]> {
     ])
     .toArray();
 
-  return grouped.map((row) => row.subject).filter(Boolean);
+  return mergeFolded(
+    grouped,
+    (row) => subjectKey(row.subject),
+    () => {}
+  ).map((row) => row.subject).filter(Boolean);
 }
 
 /**
  * Computes the dashboard summary for the calendar day containing `targetDate`,
  * as seen from `timeZone`.
+ *
+ * `includeActiveSession` exists so this can share the dashboard with the Timer
+ * without both of them reading the same row. The two render in separate
+ * Suspense boundaries and each fires its own queries, so leaving the flag on
+ * would mean `getActiveSession` runs twice per navigation for one answer.
  */
 export async function getDashboardSummary(
   userId: string,
   targetDate: Date = new Date(),
-  timeZone: string = SERVER_TIME_ZONE
+  timeZone: string = SERVER_TIME_ZONE,
+  includeActiveSession: boolean = true
 ): Promise<DashboardSummary> {
   // The user's midnight, not the server's. Same bug class as the weekly
   // buckets: a 10 PM session in Asia/Kolkata belongs to that user's today, and
@@ -237,7 +320,7 @@ export async function getDashboardSummary(
         },
       })
       .toArray(),
-    getActiveSession(userId),
+    includeActiveSession ? getActiveSession(userId) : Promise.resolve(null),
     studySessions
       .find({ userId, status: "completed" })
       .sort({ startedAt: -1 })
@@ -384,9 +467,20 @@ export async function getSubjectAnalytics(
     ])
     .toArray();
 
-  const totalAllDuration = grouped.reduce((total, row) => total + row.duration, 0);
+  // The server folded as far as `$trim` + `$toLower`; `mergeFolded` finishes the
+  // job with the real key so the totals below are per-subject, not per-spelling.
+  const merged = mergeFolded(
+    grouped,
+    (row) => subjectKey(row.subject),
+    (kept, extra) => {
+      kept.duration += extra.duration;
+      kept.count += extra.count;
+    }
+  );
 
-  const list: SubjectMetric[] = grouped.map((row) => ({
+  const totalAllDuration = merged.reduce((total, row) => total + row.duration, 0);
+
+  const list: SubjectMetric[] = merged.map((row) => ({
     subject: row.subject,
     durationSeconds: row.duration,
     sessionCount: row.count,
@@ -454,7 +548,15 @@ export async function getTopicAnalytics(
     ])
     .toArray();
 
-  const list: TopicMetric[] = grouped.map((row) => ({
+  const merged = mergeFolded(
+    grouped,
+    (row) => `${subjectKey(row.subject)}\u0000${subjectKey(row.topic)}`,
+    (kept, extra) => {
+      kept.duration += extra.duration;
+    }
+  );
+
+  const list: TopicMetric[] = merged.map((row) => ({
     subject: row.subject,
     topic: row.topic,
     durationSeconds: row.duration,
