@@ -13,16 +13,30 @@ export type AuthActionState = { error?: string; success?: string } | undefined;
  * length checks, so `RaKeSh`, `  RaKeSh  ` and `rakesh` all resolve to the single
  * value `rakesh`.
  *
- * This is what makes the `user_username_idx` unique index mean what a user expects
- * it to mean. That index is a plain binary index and therefore case-SENSITIVE —
- * verified against a live cluster, `rakesh`, `Rakesh` and `RAKESH` were all accepted
- * side by side. Nothing in Better Auth lowercases a username (it lowercases email in
- * a few places, never username), so the normalisation has to happen here or not at
- * all. Storing one canonical form keeps signup, login and the database in agreement.
+ * `user_username_idx` is a plain binary index and therefore case-SENSITIVE, so the
+ * stored spelling is what makes the index mean what a user expects it to mean.
  *
- * Consequence: a username that is somehow stored mixed-case (e.g. written by the
- * auth HTTP API, which bypasses this schema) becomes unloginable, because login
- * normalises the input and will never match the stored value.
+ * Correcting an earlier claim in this file: the username plugin DOES normalise.
+ * `node_modules/better-auth/dist/plugins/username/index.mjs` lowercases in a
+ * `user.create.before` / `user.update.before` database hook, and `signInUsername`
+ * looks the user up by `normalizer(username)`. So the normalisation below is
+ * deliberate belt-and-braces, not the only line of defence, and it is kept for
+ * three reasons:
+ *
+ *  - It does not depend on a plugin option that can be switched off.
+ *    `usernameNormalization: false` in lib/auth.ts would silently reintroduce
+ *    `Rakesh` and `rakesh` as two accounts, and this file would not notice.
+ *  - The value the zod schema validates is then the value the index compares, so
+ *    the character class below can be lowercase-only and still be honest about
+ *    what is stored.
+ *  - It keeps login, signup and updateUsername reading the same way. A mixed-case
+ *    login attempt is normalised here before it ever reaches the plugin.
+ *
+ * Rows written by a raw adapter call or a script bypass the hook, so a
+ * mixed-case username can still exist in the database - and then no login spelling
+ * can match it, because both this file and the plugin lowercase what they compare.
+ * That is a reason to keep the script paths canonical, not a reason to drop the
+ * normalisation.
  */
 const usernameSchema = z
   .string()
@@ -91,7 +105,19 @@ export async function signupAction(
       body: {
         username,
         name: username,
-        email: `${username}@ticktock.local`,
+        // The account has no email address, but signUpEmail requires one: the
+        // core endpoint validates it with z.email() and the user model declares
+        // it required. The username plugin does NOT offer a username-only
+        // sign-up - its only endpoints are signInUsername and
+        // isUsernameAvailable - so a synthetic address is structural, not a
+        // workaround, and cannot be removed without forking the auth flow.
+        //
+        // `.invalid` is reserved by RFC 2606 as guaranteed never to resolve, so
+        // unlike the `.local` this replaces (mDNS, RFC 6762) nothing can deliver
+        // to it or accept mail from it. It also cannot collide with a real
+        // address if email is added later: no real domain exists in that TLD, and
+        // the address is unique per user because the username is.
+        email: `${username}@ticktock.invalid`,
         password,
       },
       headers: h as Headers,
