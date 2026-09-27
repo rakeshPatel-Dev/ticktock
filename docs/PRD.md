@@ -877,6 +877,8 @@ Initial shortcuts:
 Space       Pause / Resume
 S           Start session
 F           Finish session
+M           Full page focus mode
+T           Toggle light / dark theme
 Esc         Close modal
 ```
 
