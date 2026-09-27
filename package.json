@@ -10,9 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:indexes": "tsx scripts/create-indexes.ts",
-    "db:backfill-paused-at": "tsx scripts/backfill-paused-at.ts",
-    "test:e2e": "tsx scripts/verify-e2e.ts"
+    "db:indexes": "tsx --conditions=react-server scripts/create-indexes.ts",
+    "db:backfill-paused-at": "tsx --conditions=react-server scripts/backfill-paused-at.ts",
+    "test:e2e": "tsx --conditions=react-server scripts/verify-e2e.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

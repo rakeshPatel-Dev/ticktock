@@ -1,5 +1,20 @@
+import "server-only";
+
 import { MongoClient, type Collection, type Db } from "mongodb";
 import type { StudySessionDoc, UserDoc } from "./schema";
+
+// `server-only` makes a mistaken `import { studySessions } from "@/db"` inside a
+// Client Component a build error instead of a runtime failure with a connection
+// string in the message. db/indexes.ts inherits the guard through this import.
+//
+// The CLI scripts import this file too, so they run with
+// `--conditions=react-server` (see the package.json scripts). Without that flag
+// the marker resolves to its throwing entry - the condition Next.js itself sets,
+// and the one that means "this really is the server".
+//
+// Note the split: db/schema.ts is deliberately NOT marked, because five client
+// components import its types and `pauseAnchorSeconds` from it. Only the
+// connection and the collection handles live here.
 
 const globalForDb = globalThis as unknown as {
   mongoClient: MongoClient | undefined;
