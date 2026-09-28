@@ -33,14 +33,20 @@ export interface StudySession {
   status: StudySessionStatus;
   /**
    * Epoch SECONDS of the current pause, or `null` when the session is not
-   * paused. Written ONLY by `pauseSession` (set) and `resumeSession` /
-   * `finishSession` (cleared).
+   * paused.
+   *
+   * LEGACY. Nothing writes this any more: pausing is local state in
+   * `lib/timer-store.ts` and never reaches the database, so a row is `active`
+   * for its whole life and flips to `completed` once. A `paused` row is now
+   * necessarily one written before that change, and this field is read only to
+   * finish such a row exactly — `pauseAnchorSeconds` is the only sanctioned
+   * reader, plus `lib/actions.ts#finishSession`.
    *
    * This used to be overloaded onto `updatedAt`, which broke the moment any
    * other code path touched a paused session — editing the notes of a paused
    * session moved the anchor forward and silently under-counted the pause.
    * `updatedAt` is now purely "row last modified"; nothing derives durations
-   * from it. `pauseAnchorSeconds` is the only sanctioned reader of this field.
+   * from it.
    */
   pausedAt: number | null;
   outcome: string | null;
