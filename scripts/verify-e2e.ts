@@ -20,6 +20,20 @@ import {
   getTopicAnalytics,
 } from "../lib/queries";
 import { formatDateInZone, getDayRange, getWeekRange } from "../lib/timezone";
+import { canSkipReconcile } from "../lib/timer-store";
+import {
+  formatTimerDisplay,
+  freshStopwatch,
+  isRunning,
+  MAX_START_SKEW_SECONDS,
+  parsePersistedStopwatch,
+  pauseSegment,
+  resolveStartedAt,
+  restoreStopwatch,
+  serializeStopwatch,
+  startSegment,
+  stopwatchElapsedMs,
+} from "../lib/timer";
 
 function getArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
@@ -120,14 +134,17 @@ async function runVerification() {
   const active = await getActiveSession(userId);
   check("Active session retrieved", active?.id === sessionId && active.status === "active", active);
 
-  // 5. Pause Session
+  // 5 & 6. Legacy paused rows. The app no longer writes `status: "paused"` —
+  //     pausing is local state and never reaches the database — but rows written
+  //     before that are still out there, and the query layer has to keep handing
+  //     them back so the client can rebuild from their `pausedAt` anchor. This is
+  //     the shape an old row actually has: paused, with no `pausedAt`.
   await studySessions.updateOne(
     { _id: sessionId },
     { $set: { status: "paused", updatedAt: new Date(now * 1000) } }
   );
-  check("Session paused", (await getActiveSession(userId))?.status === "paused");
+  check("A legacy paused row is still returned as active", (await getActiveSession(userId))?.status === "paused");
 
-  // 6. Resume Session
   await studySessions.updateOne(
     { _id: sessionId },
     { $set: { status: "active", updatedAt: new Date(now * 1000) } }
@@ -622,6 +639,210 @@ async function runVerification() {
   // 24. Delete Session
   await studySessions.deleteOne({ _id: sessionId });
   check("Session deleted", (await getSessionById(userId, sessionId)) === null);
+
+  // 25. The stopwatch state machine. This is the whole timing core of the app
+  //     and it was untested while it was a three-line function inside a server
+  //     action; the properties below are the ones the reported bugs were, so they
+  //     are asserted directly rather than inferred from a round trip.
+  const sw = startSegment(freshStopwatch(), 0);
+  check("A fresh stopwatch is zero and not running", !isRunning(freshStopwatch()) && stopwatchElapsedMs(freshStopwatch(), 5_000) === 0);
+  check("A running stopwatch is running", isRunning(sw));
+
+  // The defining property: elapsed is a function of `now` and the anchors, not of
+  // how often it was read. This is what a tab throttled to 1Hz — or fully
+  // suspended — depends on, and what a `setState(elapsed + 100)` design cannot do.
+  let at10Hz = 0;
+  for (let t = 100; t <= 30_000; t += 100) at10Hz = stopwatchElapsedMs(sw, t);
+  let at1Hz = 0;
+  for (let t = 1_000; t <= 30_000; t += 1_000) at1Hz = stopwatchElapsedMs(sw, t);
+  let throttled = 0;
+  for (const t of [1_000, 20_000, 30_000]) throttled = stopwatchElapsedMs(sw, t);
+  check(
+    "Elapsed is identical at 10Hz, 1Hz, and with three ticks in 30s",
+    at10Hz === 30_000 && at1Hz === 30_000 && throttled === 30_000,
+    { at10Hz, at1Hz, throttled }
+  );
+
+  // Pause freezes, resume continues from exactly where it stopped.
+  const swPaused = pauseSegment(sw, 12_000);
+  check(
+    "Pause freezes the number no matter how long it stays paused",
+    stopwatchElapsedMs(swPaused, 12_000) === 12_000 &&
+      stopwatchElapsedMs(swPaused, 999_000) === 12_000,
+    stopwatchElapsedMs(swPaused, 999_000)
+  );
+  const swResumed = startSegment(swPaused, 20_000);
+  check(
+    "Resume continues from the banked value, not from zero",
+    stopwatchElapsedMs(swResumed, 25_000) === 17_000,
+    stopwatchElapsedMs(swResumed, 25_000)
+  );
+  check(
+    "Pausing twice does not bank the same interval twice",
+    stopwatchElapsedMs(pauseSegment(swPaused, 50_000), 50_000) === 12_000,
+    stopwatchElapsedMs(pauseSegment(swPaused, 50_000), 50_000)
+  );
+  const beforeRestart = stopwatchElapsedMs(swResumed, 30_000);
+  check(
+    "Starting twice is a no-op",
+    stopwatchElapsedMs(startSegment(swResumed, 30_000), 30_000) === beforeRestart &&
+      beforeRestart === 22_000,
+    { beforeRestart }
+  );
+
+  // The reload case. A running session is checkpointed against the wall clock,
+  // then restored in a NEW document where `performance.now()` restarts near zero.
+  const T0 = 1_700_000_000_000;
+  const running = startSegment(freshStopwatch(), 5_000);
+  const checkpoint = serializeStopwatch(running, 5_000, T0);
+  check(
+    "Checkpointing a running stopwatch records a wall-clock anchor",
+    checkpoint.status === "running" && checkpoint.segmentStartedAtEpochMs === T0,
+    checkpoint
+  );
+  // 90s pass, then the tab reloads. Under the old design this read a monotonic
+  // clock of ~120 against a segment start of 5000, clamped to zero, and the
+  // timer visibly restarted.
+  const restored = restoreStopwatch(checkpoint, T0 + 90_000, 120);
+  check(
+    "A reload does not reset the timer",
+    stopwatchElapsedMs(restored, 120) === 90_000,
+    stopwatchElapsedMs(restored, 120)
+  );
+  check(
+    "After a restore the display is measured monotonically again, so a system clock jump cannot move it",
+    stopwatchElapsedMs(restored, 120 + 60_000) === 150_000,
+    stopwatchElapsedMs(restored, 120 + 60_000)
+  );
+  const futureAnchor = restoreStopwatch(
+    { status: "running", accumulatedMs: 0, segmentStartedAtEpochMs: T0 + 60_000 },
+    T0,
+    0
+  );
+  check(
+    "A checkpoint anchored in the future does not produce a negative timer",
+    stopwatchElapsedMs(futureAnchor, 0) === 0,
+    stopwatchElapsedMs(futureAnchor, 0)
+  );
+
+  const pausedCheckpoint = serializeStopwatch(swPaused, 20_000, T0);
+  check(
+    "Checkpointing a paused stopwatch records no anchor",
+    pausedCheckpoint.status === "paused" &&
+      pausedCheckpoint.segmentStartedAtEpochMs === null &&
+      pausedCheckpoint.accumulatedMs === 12_000,
+    pausedCheckpoint
+  );
+  const restoredPaused = restoreStopwatch(pausedCheckpoint, T0 + 3_600_000, 42);
+  check(
+    "A paused session stays paused across a reload, with the number intact",
+    restoredPaused.status === "paused" &&
+      stopwatchElapsedMs(restoredPaused, 42) === 12_000,
+    stopwatchElapsedMs(restoredPaused, 42)
+  );
+
+  // A run/pause/run cycle, then a reload. Both segments have to survive, which
+  // is what a single anchor or a naive `now - startedAt` cannot do.
+  let cycled = startSegment(freshStopwatch(), 0);
+  cycled = pauseSegment(cycled, 10_000);
+  cycled = startSegment(cycled, 15_000);
+  const cycleCheckpoint = serializeStopwatch(cycled, 20_000, T0);
+  check(
+    "A run/pause/run cycle checkpoints the closed segment and the open one",
+    cycleCheckpoint.accumulatedMs === 10_000 &&
+      cycleCheckpoint.segmentStartedAtEpochMs === T0 - 5_000,
+    cycleCheckpoint
+  );
+  const cycleRestored = restoreStopwatch(cycleCheckpoint, T0 + 30_000, 10);
+  check(
+    "A session with a pause in it survives a reload with both segments",
+    stopwatchElapsedMs(cycleRestored, 10) === 45_000,
+    stopwatchElapsedMs(cycleRestored, 10)
+  );
+
+  // A reload while paused, then resumed: the closed banked time plus the segment
+  // opened after the reload.
+  const reopened = startSegment(restoredPaused, 100);
+  check(
+    "Resuming after a paused reload continues from the banked value",
+    stopwatchElapsedMs(reopened, 3_100) === 15_000,
+    stopwatchElapsedMs(reopened, 3_100)
+  );
+
+  // `localStorage` is user-writable, so an unrecognisable checkpoint has to be
+  // refused rather than rendered as NaN.
+  check(
+    "Unrecognisable checkpoints are rejected",
+    parsePersistedStopwatch(null) === null &&
+      parsePersistedStopwatch("nope") === null &&
+      parsePersistedStopwatch({}) === null &&
+      parsePersistedStopwatch({ status: "running" }) === null
+  );
+  check(
+    "A checkpoint with a negative banked value is rejected",
+    parsePersistedStopwatch({
+      status: "paused",
+      accumulatedMs: -5,
+      segmentStartedAtEpochMs: null,
+    }) === null
+  );
+  const anchorless = parsePersistedStopwatch({
+    status: "running",
+    accumulatedMs: 1_000,
+    segmentStartedAtEpochMs: null,
+  });
+  check(
+    "A running checkpoint with no anchor degrades to paused rather than NaN",
+    anchorless !== null &&
+      restoreStopwatch(anchorless, T0, 0).status === "paused" &&
+      stopwatchElapsedMs(restoreStopwatch(anchorless, T0, 0), 0) === 1_000
+  );
+
+  check(
+    "The display floors to whole seconds",
+    formatTimerDisplay(5076.9) === "01:24:36",
+    formatTimerDisplay(5076.9)
+  );
+
+  // 25b. The reconcile fast path. Skipping the reconcile is an optimisation, and
+  //      the one thing it must never skip is dropping a local record the server
+  //      no longer has. `null` is ambiguous between "nothing is open" and "the
+  //      row we were holding is gone", and treating the two the same left a timer
+  //      counting against a deleted session with no way to clear it short of a
+  //      full page reload.
+  check(
+    "An unchanged remote row skips the reconcile",
+    canSkipReconcile("abc", "abc", true) === true
+  );
+  check(
+    "A changed remote row does not skip the reconcile",
+    canSkipReconcile("abc", "def", true) === false
+  );
+  check(
+    "A first reconcile against no session does not skip",
+    canSkipReconcile(undefined, null, false) === false
+  );
+  check(
+    "Reconciling a local record away from no-session does not skip",
+    canSkipReconcile(null, null, true) === false
+  );
+  check(
+    "No local record and no remote session is the one skippable null case",
+    canSkipReconcile(null, null, false) === true
+  );
+
+  // 26. The start instant. The client owns it, so a wrong system clock is the one
+  //     thing that can still file a session under the wrong day.
+  check("A plausible client start instant is kept", resolveStartedAt(T0 / 1000 - 30, T0 / 1000) === T0 / 1000 - 30);
+  check("A client that sends nothing gets the server's clock", resolveStartedAt(undefined, T0 / 1000) === T0 / 1000);
+  check(
+    "A client start instant too far in the future falls back to the server's",
+    resolveStartedAt(T0 / 1000 + MAX_START_SKEW_SECONDS + 1, T0 / 1000) === T0 / 1000
+  );
+  check(
+    "A client start instant too far in the past falls back to the server's",
+    resolveStartedAt(T0 / 1000 - 8 * 24 * 60 * 60, T0 / 1000) === T0 / 1000
+  );
 
   // Cleanup remaining fixture data
   await studySessions.deleteMany({ userId });
