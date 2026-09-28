@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { createSession } from "@/lib/actions";
 import { describeActionError } from "@/lib/action-errors";
+import { startFromServer } from "@/lib/timer-store";
 import { getSubjectColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
@@ -62,15 +63,26 @@ export function StartSessionModal({
     setIsSubmitting(true);
     setError(null);
 
+    // Epoch seconds from the user's own clock, at the click. The row has to
+    // start where the display starts, and the display counts on this clock —
+    // a server-stamped origin compared against the browser's was what made the
+    // timer begin late and stay offset.
+    const startedAt = Math.floor(Date.now() / 1000);
+
     const res = await createSession({
       subject: subject.trim(),
       topic: topic.trim() || undefined,
       goal: goal.trim() || undefined,
+      startedAt,
     });
 
     setIsSubmitting(false);
 
     if (res.success) {
+      // Hand the session to the store so the timer appears on this click,
+      // instead of whenever the revalidation behind this request happens to
+      // reach the client.
+      startFromServer(res.data);
       setOpen(false);
     } else {
       setError(

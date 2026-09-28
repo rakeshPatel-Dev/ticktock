@@ -26,7 +26,13 @@ const OUTCOME_OPTIONS = [
 
 interface FinishSessionModalProps {
   sessionId: string;
+  /**
+   * The focused total to record, frozen by the caller at the moment Finish was
+   * pressed. It is also what the form previews, so the two cannot disagree.
+   */
   durationSeconds: number;
+  /** Focused-seconds complement, banked by the timer store across every pause. */
+  pausedSeconds?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onFinished?: () => void;
@@ -35,6 +41,7 @@ interface FinishSessionModalProps {
 export function FinishSessionModal({
   sessionId,
   durationSeconds,
+  pausedSeconds = 0,
   open,
   onOpenChange,
   onFinished,
@@ -43,6 +50,11 @@ export function FinishSessionModal({
   const [notes, setNotes] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [celebrating, setCelebrating] = React.useState(false);
+  // What the server says it stored. The client is the clock, so the number
+  // arrives from the client — but the server clamps it to the wall-clock span it
+  // can vouch for, and the number the user is congratulated on has to be the
+  // number that actually got saved, not the one that was asked for.
+  const [savedDuration, setSavedDuration] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const notesFieldId = React.useId();
   const outcomeGroupId = React.useId();
@@ -59,6 +71,8 @@ export function FinishSessionModal({
     const res = await finishSession(sessionId, {
       outcome: outcome || undefined,
       notes: notes.trim() || undefined,
+      durationSeconds,
+      pausedSeconds,
     });
 
     setIsSubmitting(false);
@@ -77,12 +91,14 @@ export function FinishSessionModal({
       return;
     }
 
+    setSavedDuration(res.data.durationSeconds);
     setCelebrating(true);
     setTimeout(() => {
       onOpenChange(false);
       onFinished?.();
       setOutcome(null);
       setNotes("");
+      setSavedDuration(null);
       setCelebrating(false);
     }, 1200);
   };
@@ -99,7 +115,7 @@ export function FinishSessionModal({
             <p className="text-sm text-muted-foreground max-w-xs">
               You focused for{" "}
               <span className="font-bold text-foreground">
-                {formatDuration(durationSeconds)}
+                {formatDuration(savedDuration ?? durationSeconds)}
               </span>
               . High five!
             </p>

@@ -3,10 +3,20 @@
 import * as React from "react";
 import Image from "next/image";
 import { Play, Pause, Square, Maximize2, Minimize2 } from "lucide-react";
-import { pauseAnchorSeconds, type StudySession } from "@/db/schema";
+import type { StudySession } from "@/db/schema";
 import { Button } from "@/components/ui/button";
-import { pauseSession, resumeSession } from "@/lib/actions";
 import { formatTimerDisplay } from "@/lib/timer";
+import { AnimatedGlyph } from "@/components/animated-glyph";
+import {
+  clear,
+  pause,
+  readFinalTotals,
+  reconcileFromServer,
+  resume,
+  seedFromServer,
+  useTimerSnapshot,
+  type FinalTotals,
+} from "@/lib/timer-store";
 import { getSubjectColor } from "@/lib/colors";
 import {
   getShortcut,
@@ -17,7 +27,6 @@ import {
 } from "@/lib/shortcuts";
 import { StartSessionModal } from "./start-session";
 import { FinishSessionModal } from "./session-form";
-import { describeActionError } from "@/lib/action-errors";
 import { cn } from "@/lib/utils";
 
 const startShortcut = getShortcut("start");
@@ -31,64 +40,119 @@ interface TimerProps {
   subjects?: string[];
 }
 
-function computeCurrentElapsed(session: StudySession | null): number {
-  if (!session) return 0;
-  if (session.status === "active") {
-    // Use float precision (no Math.floor) so the display advances the instant
-    // a full second is reached, not up to 1 second late.
-    const nowF = Date.now() / 1000;
-    const raw = Math.max(0, nowF - session.startedAt);
-    return Math.max(0, raw - session.pausedSeconds);
-  } else if (session.status === "paused") {
-    // Paused: use the server-recorded pause anchor (integer seconds) — exact.
-    // Deliberately not `updatedAt`: a note edited mid-pause moved that field
-    // and made the clock jump forward by the time between pausing and editing.
-    const pausedAt = pauseAnchorSeconds(session);
-    const raw = Math.max(0, (pausedAt ?? session.startedAt) - session.startedAt);
-    return Math.max(0, raw - session.pausedSeconds);
-  }
-  // Finished: durationSeconds is the authoritative recorded value
-  return session.durationSeconds;
+/**
+ * The gate. It renders a placeholder until the store can produce a value the
+ * server could not have guessed, then mounts the real timer.
+ *
+ * The two live in separate components rather than being an early return in one,
+ * because the body has a dozen hooks: returning early between them would make
+ * hook order depend on whether the store had hydrated, which is exactly the
+ * class of bug that produces "rendered fewer hooks than expected" a few frames
+ * later. Mounting the body fresh is also honest — it is a first mount, not a
+ * hydration, so it gets a real first render rather than a reconciled one.
+ */
+export function Timer({ initialSession, subjects = [] }: TimerProps) {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  /**
+   * Only the running/paused card needs holding back. With no session the idle
+   * hero is a pure function of `initialSession === null`, so the server and the
+   * first client render agree on it already and there is nothing to wait for —
+   * gating it as well just hid the "Ready to focus?" hero behind a placeholder
+   * for a few frames on every page load.
+   */
+  if (initialSession && !mounted) return <TimerPlaceholder />;
+  return <TimerBody initialSession={initialSession} subjects={subjects} />;
 }
 
 /**
- * A failed pause/resume, announced to screen readers rather than left as a
- * silent colour change on a button. Rendered in both the normal and the
- * fullscreen view — the fullscreen one is a separate branch of the tree, and
- * an error that only exists in the layout you left is an error you never see.
+ * Shown for the handful of frames before the store can answer. Same card shell
+ * as the live timer, so the number appearing does not resize the page.
  */
-function ActionErrorBanner({ message }: { message: string | null }) {
-  if (!message) return null;
+function TimerPlaceholder() {
   return (
-    <p
-      role="alert"
-      className="mx-auto max-w-md rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-2.5 text-sm font-medium leading-relaxed text-destructive"
-    >
-      {message}
-    </p>
+    <div className="w-full">
+      <div className="rounded-4xl border border-border/60 bg-card p-6 sm:p-10 lg:p-14 text-center backdrop-blur-xl">
+        <div className="@container relative space-y-6 w-full max-w-xl mx-auto">
+          <div className="py-2 sm:py-4">
+            <div className="text-[clamp(2.5rem,20cqw,7rem)] font-mono font-black tracking-tight select-none leading-none w-full text-muted-foreground/30">
+              --:--:--
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-export function Timer({ initialSession, subjects = [] }: TimerProps) {
-  const [session, setSession] = React.useState<StudySession | null>(
-    initialSession
+/**
+ * The elapsed clock, with each digit animating only when it actually changes.
+ *
+ * The seconds digits roll every second; the minutes digits hold still for a
+ * minute at a time and then roll. Animating per glyph rather than per string is
+ * what makes that read as a clock instead of a flickering number — and it is
+ * why the glyphs sit in a fixed-width, monospaced grid: the animation is a
+ * vertical swap, so a digit that changed width would shove its neighbours
+ * sideways mid-roll.
+ *
+ * `aria-live` is deliberately off and the accessible name is on the wrapper
+ * instead. A live region would announce the new time on every single tick, which
+ * for a timer that runs for an hour means an hour of a screen reader narrating
+ * numbers nobody asked for.
+ */
+function AnimatedTimerDisplay({
+  elapsedSeconds,
+  className,
+}: {
+  elapsedSeconds: number;
+  className?: string;
+}) {
+  const label = formatTimerDisplay(elapsedSeconds);
+  return (
+    <div className={cn("flex justify-center tabular-nums", className)}>
+      <span role="timer" aria-label={`Elapsed time ${label}`} className="contents">
+        {label.split("").map((char, i) =>
+          char === ":" ? (
+            <span key={`sep-${i}`} aria-hidden className="relative inline-grid min-w-[0.62ch] place-items-center">
+              :
+            </span>
+          ) : (
+            <AnimatedGlyph key={`d-${i}`} value={char} />
+          )
+        )}
+      </span>
+    </div>
   );
-  const [elapsed, setElapsed] = React.useState<number>(() =>
-    computeCurrentElapsed(initialSession)
-  );
+}
+
+/**
+ * A view over the timer store. It owns no timing state of its own — the elapsed
+ * number, the running/paused flag, and the pause itself all live in
+ * `lib/timer-store`, which is what lets them outlive this component: a route
+ * change unmounts the timer, and it keeps counting.
+ */
+function TimerBody({ initialSession, subjects = [] }: TimerProps) {
+  const { session, status, elapsedSeconds } = useTimerSnapshot();
+
   const [isFinishing, setIsFinishing] = React.useState(false);
   const [isStarting, setIsStarting] = React.useState(false);
   const [isFullScreen, setIsFullScreen] = React.useState(false);
-  const [actionLoading, setActionLoading] = React.useState(false);
-  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [finalTotals, setFinalTotals] = React.useState<FinalTotals | null>(null);
 
-  // Sync with prop when server revalidates
   React.useEffect(() => {
-    setSession(initialSession);
-    if (!initialSession && document.fullscreenElement) {
+    // Order matters. Seeding adopts the server's row when the store is empty;
+    // reconciling then layers the persisted checkpoint on top, which is the only
+    // thing that knows the user paused. Both are effects, never render.
+    seedFromServer(initialSession);
+    reconcileFromServer(initialSession);
+    if (!session && document.fullscreenElement) {
       void document.exitFullscreen().catch(() => {});
     }
-  }, [initialSession]);
+  }, [initialSession, session]);
 
   // Enter / exit real browser fullscreen
   const enterFullScreen = React.useCallback(() => {
@@ -121,70 +185,30 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Dismiss a failed action's message on its own: it describes one event, and
-  // a timer that is still running is not the place for a permanent banner.
-  React.useEffect(() => {
-    if (!actionError) return;
-    const timer = setTimeout(() => setActionError(null), 6000);
-    return () => clearTimeout(timer);
-  }, [actionError]);
+  /**
+   * Pausing and resuming are pure local transitions. There is no request, which
+   * is why there is nothing here that can be wrong for a round trip: no
+   * optimistic copy of a server value, no pause anchor that arrives too late to
+   * matter, no display that jumps and then snaps back.
+   */
+  const handlePause = React.useCallback(() => pause(), []);
+  const handleResume = React.useCallback(() => resume(), []);
 
-  // Pause and resume are applied optimistically so the button feels instant,
-  // which means the optimistic value has to be undone when the server refuses.
-  // Without this the timer reads "Paused" while the row in Mongo still says
-  // "active", and the duration keeps accruing where the user cannot see it.
-  const handlePause = React.useCallback(async () => {
-    if (!session || actionLoading) return;
-    setActionLoading(true);
-    setActionError(null);
-    const previous = session;
-    setSession({ ...previous, status: "paused" });
+  /**
+   * Snapshots the totals at the moment Finish is pressed. The modal can stay open
+   * for as long as it takes to write notes, and what gets recorded should be the
+   * number the user pressed Finish on — not whatever the clock has reached by the
+   * time they hit Save, which is what the live prop used to show.
+   */
+  const handleFinish = React.useCallback(() => {
+    setFinalTotals(readFinalTotals());
+    setIsFinishing(true);
+  }, []);
 
-    const res = await pauseSession(previous.id);
-
-    if (!res.success) {
-      setSession(previous);
-      setActionError(
-        describeActionError(res.error, "Could not pause the timer. Still running.")
-      );
-    }
-    setActionLoading(false);
-  }, [session, actionLoading]);
-
-  const handleResume = React.useCallback(async () => {
-    if (!session || actionLoading) return;
-    setActionLoading(true);
-    setActionError(null);
-    const previous = session;
-    setSession({ ...previous, status: "active" });
-
-    const res = await resumeSession(previous.id);
-
-    if (!res.success) {
-      setSession(previous);
-      setActionError(
-        describeActionError(res.error, "Could not resume the timer. Still paused.")
-      );
-    }
-    setActionLoading(false);
-  }, [session, actionLoading]);
-
-  // Interval for active session
-  React.useEffect(() => {
-    if (!session) return;
-
-    if (session.status !== "active") {
-      return;
-    }
-
-    // 100ms interval: computeCurrentElapsed uses float-precision Date.now(),
-    // so the displayed second advances the instant it's reached (≤100ms lag).
-    const interval = setInterval(() => {
-      setElapsed(computeCurrentElapsed(session));
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [session]);
+  const handleFinished = React.useCallback(() => {
+    clear();
+    setFinalTotals(null);
+  }, []);
 
   // Global Keyboard Shortcuts
   React.useEffect(() => {
@@ -193,10 +217,10 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
       if (matchesShortcut(pauseResumeShortcut, e) && session) {
         e.preventDefault();
-        if (session.status === "active") {
-          void handlePause();
-        } else if (session.status === "paused") {
-          void handleResume();
+        if (status === "running") {
+          handlePause();
+        } else if (status === "paused") {
+          handleResume();
         }
       }
 
@@ -207,7 +231,10 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
       if (matchesShortcut(finishShortcut, e) && session && !isFinishing) {
         e.preventDefault();
-        setIsFinishing(true);
+        if (document.fullscreenElement) {
+          exitFullScreen();
+        }
+        handleFinish();
       }
 
       if (matchesShortcut(toggleFullScreenShortcut, e) && session) {
@@ -220,14 +247,9 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [session, isStarting, isFinishing, handlePause, handleResume, toggleFullScreen]);
+  }, [session, status, isStarting, isFinishing, handlePause, handleResume, handleFinish, toggleFullScreen, exitFullScreen]);
 
-  const displayElapsed = session
-    ? session.status === "active"
-      ? elapsed
-      : computeCurrentElapsed(session)
-    : 0;
-
+  const isActive = status === "running";
   const colorTheme = session ? getSubjectColor(session.subject) : null;
 
   return (
@@ -242,7 +264,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 alt="Start session"
                 width={150}
                 height={150}
-                className="h-28 w-28 sm:h-40 sm:w-40"
+                className="h-28 w-28 sm:w-40 sm:h-40"
               />
             </div>
 
@@ -279,7 +301,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
         <div
           className={cn(
             "rounded-4xl border p-6 sm:p-10 lg:p-14 text-center transition-all duration-300 relative backdrop-blur-xl",
-            session.status === "active"
+            isActive
               ? "border-emerald-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(16,185,129,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
               : "border-amber-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(245,158,11,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
           )}
@@ -314,18 +336,18 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   {session.subject}
                 </span>
 
-                {session.status === "paused" ? (
-                  <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
-                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                    Timer Paused
-                  </div>
-                ) : (
+                {isActive ? (
                   <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 bg-emerald-500/15 shadow-sm shadow-emerald-500/15">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                     </span>
                     Active Focus
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
+                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                    Timer Paused
                   </div>
                 )}
               </div>
@@ -347,26 +369,25 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               <div
                 className={cn(
                   "text-[clamp(2.5rem,20cqw,7rem)] font-mono font-black tracking-tight select-none transition-all duration-300 leading-none w-full",
-                  session.status === "active"
+                  isActive
                     ? "text-foreground drop-shadow-sm"
                     : "text-muted-foreground opacity-60"
                 )}
               >
-                {formatTimerDisplay(displayElapsed)}
+                <AnimatedTimerDisplay elapsedSeconds={elapsedSeconds} />
               </div>
               <p className="text-xs sm:text-sm uppercase font-extrabold tracking-widest text-muted-foreground/80 mt-4">
-                {session.status === "active" ? "Deep Focus in Progress" : "Timer Paused"}
+                {isActive ? "Deep Focus in Progress" : "Timer Paused"}
               </p>
             </div>
 
             {/* Playful Pill Control Buttons */}
             <div className="flex flex-wrap items-center justify-center gap-3.5 pt-2">
-              {session.status === "active" ? (
+              {isActive ? (
                 <Button
                   variant="amber"
                   size="lg"
                   onClick={handlePause}
-                  disabled={actionLoading}
                   className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
                 >
                   <Pause className="h-5 w-5 fill-current" />
@@ -377,7 +398,6 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   variant="emerald"
                   size="lg"
                   onClick={handleResume}
-                  disabled={actionLoading}
                   className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
                 >
                   <Play className="h-5 w-5 fill-current" />
@@ -388,8 +408,7 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               <Button
                 variant="rose"
                 size="lg"
-                onClick={() => setIsFinishing(true)}
-                disabled={actionLoading}
+                onClick={handleFinish}
                 className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
               >
                 <Square className="h-5 w-5 fill-current" />
@@ -397,32 +416,21 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
               </Button>
             </div>
 
-            <ActionErrorBanner message={actionError} />
-
             {/* Shortcut hint */}
             <p className={`${shortcutHintClass("pauseResume", "finish", "toggleFullScreen")} text-sm text-muted-foreground/80 font-medium`}>
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
                 {pauseResumeShortcut.label}
               </kbd>{" "}
-              to {session.status === "active" ? "pause" : "resume"} ·{" "}
+              to {isActive ? "pause" : "resume"} ·{" "}
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
                 {finishShortcut.label}
               </kbd>{" "}
               to finish ·{" "}
               <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-                M
+                {toggleFullScreenShortcut.label}
               </kbd>{" "}
               for full screen
             </p>
-
-            {/* Finish Modal */}
-            <FinishSessionModal
-              sessionId={session.id}
-              durationSeconds={displayElapsed}
-              open={isFinishing}
-              onOpenChange={setIsFinishing}
-              onFinished={() => setSession(null)}
-            />
           </div>
         </div>
       )}
@@ -442,18 +450,18 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 {session.subject}
               </span>
 
-              {session.status === "paused" ? (
-                <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
-                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                  Timer Paused
-                </div>
-              ) : (
+              {isActive ? (
                 <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 bg-emerald-500/15 shadow-sm shadow-emerald-500/15">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
                   Active Focus
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
+                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  Timer Paused
                 </div>
               )}
             </div>
@@ -491,26 +499,25 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   "font-mono font-black tracking-tight leading-none transition-all duration-300",
                   // Scales with the fullscreen container so the timer never overflows
                   "text-[clamp(2.75rem,13cqw,16rem)]",
-                  session.status === "active"
+                  isActive
                     ? "text-foreground"
                     : "text-muted-foreground opacity-60"
                 )}
               >
-                {formatTimerDisplay(displayElapsed)}
+                <AnimatedTimerDisplay elapsedSeconds={elapsedSeconds} />
               </div>
               <p className="text-base sm:text-lg uppercase font-bold tracking-widest text-muted-foreground/70 mt-6">
-                {session.status === "active" ? "Deep Focus in Progress" : "Timer Paused"}
+                {isActive ? "Deep Focus in Progress" : "Timer Paused"}
               </p>
             </div>
 
             {/* Pill Control Buttons */}
             <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-              {session.status === "active" ? (
+              {isActive ? (
                 <Button
                   variant="amber"
                   size="lg"
                   onClick={handlePause}
-                  disabled={actionLoading}
                   className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
                 >
                   <Pause className="h-5 w-5 fill-current" />
@@ -521,7 +528,6 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                   variant="emerald"
                   size="lg"
                   onClick={handleResume}
-                  disabled={actionLoading}
                   className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
                 >
                   <Play className="h-5 w-5 fill-current" />
@@ -534,49 +540,48 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
                 size="lg"
                 onClick={() => {
                   exitFullScreen();
-                  setIsFinishing(true);
+                  handleFinish();
                 }}
-                disabled={actionLoading}
                 className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
               >
                 <Square className="h-5 w-5 fill-current" />
                 Finish
               </Button>
             </div>
-
-            <ActionErrorBanner message={actionError} />
           </div>
 
           {/* Bottom Shortcut bar */}
           <div className={`${shortcutHintClass("pauseResume", "finish", "exitFullScreen", "toggleFullScreen")} text-center text-sm text-muted-foreground/70 font-medium max-w-6xl mx-auto`}>
             Press{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
+            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
               {pauseResumeShortcut.label}
             </kbd>{" "}
-            to {session.status === "active" ? "pause" : "resume"} ·{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
+            to {isActive ? "pause" : "resume"} ·{" "}
+            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
               {finishShortcut.label}
             </kbd>{" "}
             to finish ·{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
+            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
               {exitFullScreenShortcut.label}
             </kbd>{" "}
             or{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border font-bold shadow-2xs">
+            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
               {toggleFullScreenShortcut.label}
             </kbd>{" "}
-            to exit
           </div>
-
-          {/* Finish Modal (must stay mounted so it can open) */}
-          <FinishSessionModal
-            sessionId={session.id}
-            durationSeconds={displayElapsed}
-            open={isFinishing}
-            onOpenChange={setIsFinishing}
-            onFinished={() => setSession(null)}
-          />
         </div>
+      )}
+
+      {/* Finish Modal rendered once to preserve form and celebration state across fullscreen transitions */}
+      {session && (
+        <FinishSessionModal
+          sessionId={session.id}
+          durationSeconds={finalTotals?.durationSeconds ?? elapsedSeconds}
+          pausedSeconds={finalTotals?.pausedSeconds ?? 0}
+          open={isFinishing}
+          onOpenChange={setIsFinishing}
+          onFinished={handleFinished}
+        />
       )}
     </div>
   );
