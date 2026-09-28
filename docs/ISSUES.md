@@ -1,12 +1,17 @@
 # TickTock — Known Issues
 
-> Last updated: 2026-09-27. Issues #1–#8, #11 and #16–#20 are fixed (#19 closed as not-a-bug); #9, #10, #12–#15 are open.
+> Last updated: 2026-09-28. Issues #1–#8, #11, #13, #16–#20 and #21–#24 are fixed (#19 closed as
+> not-a-bug); #9, #10, #12, #14, #15 are open.
+>
+> #21 and #22 are the two live bugs in the old timer, found after that review. #23 is the test gap
+> that let both ship. #24, and the correction to #13, were found by driving the real app in a
+> browser — a layer the suite does not reach.
 
 This document catalogues bugs, design weaknesses, and missing features discovered during a code review of the TickTock codebase. Issues are grouped by severity.
 
 ---
 
-## ✅ Critical / Data-integrity — all three fixed
+## ✅ Critical / Data-integrity — all fixed
 
 ### 1. ~~`resumeSession` pause-delta is computed from `updatedAt`~~ — FIXED
 
@@ -77,6 +82,65 @@ outside the range, so its minutes were dropped rather than shown on the wrong ba
 Known, accepted limitation: with no cookie yet — the first request of a visit on a UTC host — the
 fallback is the server's zone. It self-corrects from the second navigation on and is not persisted,
 so it cannot accumulate.
+
+---
+
+### 21. ~~The timer starts late, and stays permanently offset~~ — FIXED
+
+**Files:** [`lib/actions.ts`](file:///home/patel/Projects/ticktock/lib/actions.ts),
+[`lib/timer-store.ts`](file:///home/patel/Projects/ticktock/lib/timer-store.ts)
+
+**Was:** `createSession` stamped `startedAt` with the **server's** clock,
+`Math.floor(Date.now() / 1000)`, and the running timer measured against the
+**browser's** `Date.now()`. Two separate defects in one line:
+
+- **Truncation bias.** The server clock was floored, so the first tick returned
+  `frac(realStartInstant)` instead of `0` — up to a second of free credit.
+- **Clock skew, and it never self-corrected.** `Math.max(0, …)` clamped at zero,
+  so whenever the server clock ran ahead of the browser the display sat at
+  `00:00:00` until the browser caught up. It then stayed offset by exactly the
+  skew, because every subsequent tick was client arithmetic on a server-stamped
+  origin.
+
+**Now:** the client owns the clock, so it owns the start instant too. `createSession`
+takes `startedAt` from the user — which is also the *more* consistent choice, since
+"today" is already bucketed by the user's midnight in `getDayRange`, so their clock
+agrees with the grouping they expect. An open run segment is measured with
+`performance.now()`, which is monotonic and immune to NTP corrections, DST, and a
+user editing their system clock mid-session.
+
+A supplied `startedAt` more than `MAX_START_SKEW_SECONDS` from the server's, or
+older than a week, is refused in favour of the server's own clock — a guard on a
+wrong system clock, not a trust boundary.
+
+---
+
+### 22. ~~Pausing collapses the display to `00:00:00`; resuming jumps it forward by the whole pause~~ — FIXED
+
+**Files:** [`components/timer.tsx`](file:///home/patel/Projects/ticktock/components/timer.tsx),
+[`lib/timer-store.ts`](file:///home/patel/Projects/ticktock/lib/timer-store.ts)
+
+**Was:** pause and resume were optimistic local updates standing in for a server
+value. `handlePause` did `setSession({ ...previous, status: "paused" })` — which
+sets `status` but not `pausedAt`, and a running row always has `pausedAt: null`. The
+optimistic paused object therefore reached `pauseAnchorSeconds`, fell through to its
+`?? updatedAt` legacy shim, and found `updatedAt === startedAt` for any session that
+had never been edited:
+
+```text
+raw = max(0, startedAt - startedAt) = 0
+```
+
+So pausing at 40 minutes instantly collapsed the display to `00:00:00`, then jumped
+back to 40:00 when the revalidation landed. Resume was the mirror image:
+`pausedSeconds` did not yet include the pause that had just ended, so the display
+jumped *forward* by the entire pause length, then snapped back. Both were
+guaranteed, every time.
+
+**Now:** pause and resume are pure local transitions with no request at all, and the
+only pause anchor is the one the client itself wrote. There is no server value to
+imitate, so there is no window in which the two can disagree. A row is `active` for
+its whole life and flips to `completed` once.
 
 ---
 
@@ -219,17 +283,49 @@ from the active session separately.
 
 ---
 
-### 13. `clearAllSessions` does not guard against an active session being deleted mid-timer
+### 13. ~~`clearAllSessions` does not guard against an active session being deleted mid-timer~~ — FIXED
 
-**File:** [`lib/actions.ts#L324-L339`](file:///home/patel/Projects/ticktock/lib/actions.ts#L324)
+**Was:** [`lib/actions.ts`](file:///home/patel/Projects/ticktock/lib/actions.ts)
 
-`clearAllSessions` deletes every document including active/paused sessions. The timer component
-on the dashboard does **not** receive a server-push notification; the in-progress timer will
-keep counting until the user refreshes, and on the next revalidation it will try to act on a
-session ID that no longer exists.
+`clearAllSessions` deletes every document including active/paused sessions, and the
+timer on the dashboard received no server-push notification — so it kept counting
+against a row that no longer existed, and on the next revalidation tried to act on a
+session ID that was gone.
 
-**Suggested fix:** Either prevent `clearAllSessions` while a session is active (return
-`ACTIVE_SESSION_EXISTS`), or force-complete any active session before deleting.
+**Now:** fixed, but not the way the first attempt claimed, and the wrong version is
+worth recording because the test suite passed straight over it.
+
+The first attempt asserted that the client-authoritative rework had fixed this for
+free, on the grounds that `reconcileFromServer` compares the local record against
+whatever the server has and drops it when the server has nothing. That is true of
+the code, and it was still broken in the most ordinary sequence a user performs:
+
+```text
+load the dashboard, nothing open   → reconcile runs, records "no remote session"
+start a session                    → store takes the row; the recorded id is stale
+finish or delete that session      → reconcile runs, and skips
+```
+
+`reconcileFromServer` had a fast path that skipped the entire reconcile when the
+remote id matched the last one it reconciled. `null` means both "the server has
+nothing open" and "the row you were holding is gone", and after a start the
+recorded id was still `null` — so finishing or deleting the session hit the fast
+path, the local record was never dropped, and the timer kept counting against a
+deleted row with no way to clear it short of a full page reload. The "Ready to
+focus?" hero never came back.
+
+Two changes, either of which is sufficient:
+
+- `startFromServer` records the new row's id, so the next reconcile has a real id
+  to compare against instead of a stale `null`.
+- The fast path refuses to skip when the remote is `null` *and* a local record
+  exists — the only ambiguous case. Extracted as `canSkipReconcile` and asserted
+  across all five combinations in `scripts/verify-e2e.ts`.
+
+Found by driving the real app in a browser, not by the test suite. Every
+unit-level check of the old `reconcileFromServer` used a freshly imported module,
+where `reconciledRemoteId` is still `undefined` and the fast path cannot fire at
+all. A test that cannot reach the bug is not evidence the bug is gone.
 
 ---
 
@@ -370,6 +466,71 @@ nothing describing *why* it was invalid. The error `<p>` now has an `id` that th
 
 Checked mechanically afterwards: every `<label>` in `app/` and `components/` now resolves to a control.
 
+### 23. ~~The timing core had no tests at all~~ — FIXED
+
+**File:** [`scripts/verify-e2e.ts`](file:///home/patel/Projects/ticktock/scripts/verify-e2e.ts)
+
+The old `calculateDuration` was never imported by the test script. Its "pause" and "resume" steps
+wrote `{ status, updatedAt }` straight to Mongo and asserted that a string round-tripped — which
+exercised none of the arithmetic and never went near `pauseSession`/`resumeSession`. The
+`updateMany` in step 8 wrote a fabricated `durationSeconds: 3600`.
+
+So the entire thing was untested at the level that matters, and issues #21 and #22 were both
+sitting in code no test touched.
+
+The rework replaced it with a pure state machine in `lib/timer.ts` whose every transition takes
+`now` as an argument, so it is testable with no browser, no fake timers, and no network. 24
+assertions now cover the properties the reported bugs actually violated:
+
+- elapsed is identical at 10Hz, 1Hz, and with three ticks in thirty seconds;
+- pause freezes the number indefinitely; pausing twice banks once; starting twice discards nothing;
+- resume continues from the banked value;
+- a reload that restarts `performance.now()` at zero does not reset the timer, and does not go
+  negative;
+- after a restore the display is measured monotonically again, so a system clock jump cannot move it;
+- a run/pause/run cycle survives a reload with both segments;
+- `localStorage` garbage is refused rather than rendered as `NaN`;
+- `resolveStartedAt` keeps a plausible client instant and falls back for a wildly wrong one.
+
 ---
 
-*Generated by code review — September 2026.*
+### 24. ~~The timer hydrated against a number the server could only guess~~ — FIXED
+
+**Files:** [`lib/timer-store.ts`](file:///home/patel/Projects/ticktock/lib/timer-store.ts),
+[`components/timer.tsx`](file:///home/patel/Projects/ticktock/components/timer.tsx)
+
+**Was:** `useTimerSnapshot` passed one `getSnapshot` as both the client and the
+server snapshot, on the reasoning — stated in a comment — that seeding the store
+during render would make the two sides agree. They agree only until the first
+reconcile reads the checkpoint.
+
+Since pausing is local by design, the server has never heard about it. A paused
+session is an `active` row in Mongo, so a page load rendered
+`elapsed = now - startedAt` and got a confidently wrong number. Loading a session
+paused at 36 seconds put `00:00:58` on the screen and then settled on `00:00:36`
+once hydration read the checkpoint — the same jump-and-snap-back this rework
+exists to remove, reappearing at a different layer. React was throwing the tree
+away and rebuilding it: `Hydration failed because the server rendered text didn't
+match the client`.
+
+**Now:** the server renders nothing it would have to invent. `getServerSnapshot`
+and `getClientSnapshot` are separate functions; until an effect after hydration
+both return the same constant `PENDING_SNAPSHOT`, and the running/paused card
+renders a `--:--:--` placeholder until then. The idle hero is not gated — with no
+session it is a pure function of `initialSession === null` and already agrees.
+
+The gate is deliberately scoped to `initialSession` being present. Gating
+everything was the first attempt, and it hid the "Ready to focus?" hero behind a
+placeholder on every load.
+
+`seedFromServer` also moved out of render into that effect. Publishing a snapshot
+during `Timer`'s render notified `TimerBody` mid-render, which React refuses with
+*"Cannot update a component while rendering a different component"*.
+
+Found by loading a paused session in a real browser. No unit test could have
+caught any of it: every timing assertion in the suite runs in Node, where there
+is no server render and no hydration pass.
+
+---
+
+*Generated by code review — September 2026. Issues #21–#24 added by the timer rework.*

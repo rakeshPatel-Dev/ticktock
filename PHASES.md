@@ -11,6 +11,14 @@ This document outlines the end-to-end execution roadmap to implement **TickTock*
 > decisions made during the rewrite are in [`docs/MONGO_MIGRATION_PLAN.md`](./docs/MONGO_MIGRATION_PLAN.md);
 > the current schema is in [`docs/DB_SCHEMA.md`](./docs/DB_SCHEMA.md).
 
+> **Pivot: server-authoritative timer → client-authoritative timer.** The timer entries in
+> Phases 3.1 and 3.3 below (`calculateDuration`, `calculateCurrentElapsed`, `pauseSession`,
+> `resumeSession`) are the historical record and are left unedited. They were all removed. Timing is
+> now measured in the browser and sent once at the end, so the server receives only a start instant
+> and a final duration; `pauseSession` and `resumeSession` no longer exist and a `paused` row is
+> now necessarily a legacy one. The current design is in [`docs/API.md`](./docs/API.md) §3–§5 and
+> §16–§18, and the two bugs it fixed are written up in [`docs/ISSUES.md`](./docs/ISSUES.md) #21–#23.
+
 ---
 
 ## Architecture & Implementation Principles

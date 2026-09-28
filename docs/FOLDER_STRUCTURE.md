@@ -90,12 +90,27 @@ components/
 ├── session-list.tsx
 ├── session-form.tsx
 ├── dashboard-summary.tsx
+├── animated-glyph.tsx
 └── timezone-sync.tsx
 ```
 
 Keep components focused on UI and interaction. `timezone-sync.tsx` is the one deliberate exception: it
 renders nothing and exists to hand the browser's timezone to the server, which no server component can
 discover on its own.
+
+#### `animated-glyph.tsx`
+
+A single glyph that animates when its own value changes, and nothing else. The
+timer renders one per character, so the seconds digits roll every second while
+the minutes digits sit still.
+
+It is a whole file for roughly thirty lines on purpose. It used to be the
+number half of a much larger countdown component — variants, sizes, separators,
+`targetDate` arithmetic, a static demo mode, completion callbacks — none of which
+anything imported. That component kept its own `setInterval` and computed
+remaining time from a `targetDate`, which is a second clock; the timer counts *up
+from* an instant the store owns. Keeping the file meant keeping the clock, so the
+clock went and the file was renamed to say what is actually in it.
 
 ---
 
@@ -174,8 +189,6 @@ Examples:
 
 ```text
 createSession()
-pauseSession()
-resumeSession()
 finishSession()
 updateSession()
 deleteSession()
@@ -248,14 +261,32 @@ static sign-in and sign-up pages dynamic to service a component that does nothin
 
 #### `timer.ts`
 
-Timer-related calculations.
+The timing core. Pure functions, no React, no `window`, no network — every transition
+takes `now` as an argument so the whole thing is testable without a browser.
 
 Examples:
 
 ```text
-calculateDuration()
-calculatePausedTime()
-formatDuration()
+startSegment()  pauseSegment()      // the two transitions
+stopwatchElapsedMs()                // THE definition of elapsed
+serializeStopwatch()  restoreStopwatch()  // survive a reload
+parsePersistedStopwatch()           // validate localStorage
+resolveStartedAt()                  // guard a wrong system clock
+formatDuration()  formatTimerDisplay()
+```
+
+#### `timer-store.ts`
+
+The running timer as a module singleton outside React, consumed with
+`useSyncExternalStore`. Owns the clock, checkpoints it to `localStorage` on every
+transition, and renders via `requestAnimationFrame` while publishing only when the
+displayed second changes.
+
+```text
+seedFromServer()  reconcileFromServer()   // effects, never render
+canSkipReconcile()                        // when the reconcile may be skipped
+startFromServer()  pause()  resume()  clear()
+readFinalTotals()  useTimerSnapshot()     // split client/server snapshots
 ```
 
 #### `utils.ts`

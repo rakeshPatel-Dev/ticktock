@@ -61,7 +61,34 @@ Creates and starts a new study session.
    - `started_at = current timestamp`
    - `duration_seconds = 0`
    - `paused_seconds = 0`
-5. Return the created session.
+5. Return the whole session.
+
+### Input
+
+```ts
+{
+  subject: string
+  topic?: string
+  goal?: string
+  // Epoch seconds, from the user's own clock, at the moment they pressed start.
+  startedAt?: number
+}
+```
+
+`startedAt` is optional. The client owns the clock the timer counts on, so it
+owns the start instant too; the server falls back to its own clock when the
+client sends nothing, and also when the supplied value is more than
+`MAX_START_SKEW_SECONDS` away from the server's or older than a week. See
+§16 for why.
+
+### Response
+
+```ts
+StudySession
+```
+
+The full session, not just its id, so the client can start its timer on the click
+instead of waiting for the revalidation that follows the insert.
 
 ### Example
 
@@ -70,6 +97,7 @@ await createSession({
   subject: "DSA",
   topic: "Binary Search",
   goal: "Solve 5 problems",
+  startedAt: Math.floor(Date.now() / 1000),
 })
 ```
 
@@ -101,44 +129,30 @@ The client should use this to recover an active session.
 
 ---
 
-# 3. Pause Session
+# 3. Pause and Resume
 
-### Server Action
-
-```ts
-pauseSession(id)
-```
-
-Pauses the currently running session.
-
-### Behavior
-
-- Verify session exists.
-- Verify session is `active`.
-- Record the pause state.
-- Update `status` to `paused`.
-- Update `updated_at`.
-
-The paused time should not contribute to `duration_seconds`.
-
----
-
-# 4. Resume Session
-
-### Server Action
+**Neither is a server action any more.** Pausing and resuming are pure local
+transitions in `lib/timer-store.ts`; they make no request at all.
 
 ```ts
-resumeSession(id)
+import { pause, resume } from "@/lib/timer-store";
+
+pause();
+resume();
 ```
 
-Resumes a paused session.
+A row is `active` for the whole of its life and flips to `completed` once, at
+the end. Nothing derives a duration from `status` any more, and `pausedAt` is
+only read to rebuild rows that were written before the client took over the
+clock.
 
-### Behavior
-
-- Verify session exists.
-- Verify session is `paused`.
-- Record the resume time.
-- Update `status` to `active`.
+The reason is not fewer round trips for their own sake. Pause and resume used to
+be optimistic local updates standing in for a server value, and being optimistic
+is what made them wrong: the optimistic object set `status` without the pause
+anchor, so the display collapsed to `00:00:00` on every pause and jumped forward
+by the length of the pause on every resume, then snapped back when the
+revalidation landed. With no server value to imitate there is no window in which
+the two can disagree.
 
 ---
 
@@ -147,10 +161,10 @@ Resumes a paused session.
 ### Server Action
 
 ```ts
-finishSession(id)
+finishSession(id, input)
 ```
 
-Completes a session.
+Completes a session. The last request in a session's life.
 
 ### Input
 
@@ -158,18 +172,45 @@ Completes a session.
 {
   outcome?: string
   notes?: string
+  // Focused seconds, measured and floored by the client.
+  durationSeconds?: number
+  // The paused-seconds complement, banked across every pause.
+  pausedSeconds?: number
 }
 ```
+
+The client is the clock, so the client supplies the focused total. Both are
+optional, so a client that sends neither still lands a coherent row.
 
 ### Behavior
 
 1. Verify the session exists.
-2. Calculate final focused duration.
-3. Set `ended_at`.
-4. Set `duration_seconds`.
+2. Set `ended_at` to the server's clock.
+3. Clamp `duration_seconds` to the wall-clock span `ended_at - started_at`.
+4. Clamp `paused_seconds` so `duration + paused <= span`.
 5. Store outcome and notes.
 6. Set `status = "completed"`.
 7. Update `updated_at`.
+
+Steps 3 and 4 are not a trust boundary — this is a personal tracker, the user is
+the only party, and there is nothing to cheat. They guard a *wrong clock*: an
+uncorrected system clock hours out would otherwise write a nonsense duration into
+the record, and from there into every daily total, every subject average, and
+every streak the user ever looks at.
+
+A row that is still `paused` skips all of that and derives both totals from its
+own `pausedAt` anchor, because such a row is always a legacy one and has enough
+information to be exact without any client input.
+
+### Response
+
+```ts
+{ durationSeconds: number }
+```
+
+The value actually stored, after clamping. The finish modal congratulates the
+user on *this* number, so the figure on screen and the figure in the record
+cannot be different.
 
 ### Example
 
@@ -177,6 +218,8 @@ Completes a session.
 await finishSession(sessionId, {
   outcome: "Solved problems",
   notes: "Solved 6 binary search problems.",
+  durationSeconds: 2712,
+  pausedSeconds: 300,
 })
 ```
 
@@ -549,82 +592,149 @@ Do not expose raw database errors to the user.
 
 # 16. Timer Architecture
 
-The timer does not make a server request every second.
-
-Avoid:
-
-```text
-Timer
-  ↓
-API request every second
-  ↓
-MongoDB
-```
-
-Instead:
+The timer makes **two** requests per session, ever: one to open it and one to
+close it. Everything in between is local.
 
 ```text
-Start session
-     ↓
-Persist start time
-     ↓
-Client calculates display time
-     ↓
-Pause / Resume events persisted
-     ↓
-Finish session
-     ↓
-Calculate final duration
-     ↓
-Persist result
+Start ──► createSession()          one insert, so the one-active-session
+              │                    invariant is enforced up front
+              ▼
+         ┌──────────────────────────────────────────┐
+         │  lib/timer-store.ts — no network         │
+         │                                          │
+         │  elapsed = accumulated + (now - anchor)  │
+         │                                          │
+         │  pause / resume ──► local transitions    │
+         │  reload      ──► checkpoint, then restore│
+         └──────────────────────────────────────────┘
+              │
+              ▼
+Finish ─► finishSession()         one update, carrying the duration
 ```
 
-The displayed timer may update every second, but the database should not.
+The old shape was three transitions, three requests, and a pause anchor that had
+to survive a round trip. Two requests is the floor: a row has to exist before
+the timer can own it, and the record cannot exist without the duration.
+
+### The two clocks
+
+| Clock | Used for | Why |
+| --- | --- | --- |
+| `performance.now()` | the open run segment | Monotonic. Immune to NTP corrections, DST, timezone changes, and a user editing their system clock mid-session. |
+| `Date.now()` | checkpointing a segment | The only clock that survives a reload, because `performance.now()` restarts from zero on every navigation. |
+
+The read path touches the monotonic clock; the write path touches the wall clock
+exactly once, when a segment is checkpointed. A system clock change mid-session
+therefore cannot move the display.
+
+### Rendering
+
+`requestAnimationFrame`, not `setInterval`. Browsers suspend rAF entirely in a
+hidden tab, so a backgrounded session costs nothing instead of waking up ten
+times a second, and the first frame after the tab is shown is already correct —
+elapsed is recomputed from the anchor, never decremented. The store republishes
+only when the floored second changes, so the timer re-renders about once a second
+rather than once a frame.
+
+Each digit animates independently when it changes, reusing `AnimatedGlyph` from
+`components/animated-glyph.tsx`. The seconds digits roll every second; the
+minutes and hours digits sit still and only roll when they turn over. Animating
+per glyph rather than per string is what makes that read as a clock rather than a
+flickering number, and the glyphs sit in a fixed-width monospaced grid so a
+vertical swap cannot shove its neighbours sideways.
+
+Only the glyph is reused. The animation used to live in a larger countdown
+component that computed its own remaining time from a `targetDate` on its own
+`setInterval`; this timer counts *up from* an instant the store already owns, so
+that clock had to go. What is left is the part that is just an animation.
+
+`aria-live` is off and the accessible name sits on the wrapper instead. A live
+region would announce the new time on every tick, which for a one-hour session
+means an hour of a screen reader narrating numbers nobody asked for.
 
 ---
 
 # 17. Timer Calculation
 
-Focused duration should be based on timestamps.
-
-Conceptually:
+Elapsed time is derived from timestamps. Never counted.
 
 ```text
-focused duration
-=
-current/end time
--
-started time
--
-paused duration
+running:  elapsed = accumulated + (monotonicNow - segmentStartedAt)
+paused:   elapsed = accumulated
 ```
 
-The displayed timer is therefore derived from actual timestamps rather than an incrementing counter.
+Consequences that are asserted in `scripts/verify-e2e.ts`:
 
-This prevents timer drift caused by browser throttling or delayed JavaScript execution.
+- **Sampling rate is irrelevant.** Reading it at 10Hz, at 1Hz, or three times in
+  thirty seconds gives the same answer at the same instant. This is what a
+  throttled or suspended tick loop depends on, and what a `setState(elapsed + 100)`
+  design cannot provide.
+- **Pause freezes the number** and banks the open segment. Pausing twice does not
+  bank it twice; starting twice does not discard what was banked.
+- **A reload does not reset anything.** A checkpoint records the open segment's
+  wall-clock start; restoring folds the elapsed achieved while the tab was gone
+  into a fresh monotonic anchor and reads the wall clock exactly once.
 
 ---
 
 # 18. Active Session Recovery
 
-If the user refreshes the browser:
+Three cases, and the order matters:
 
 ```text
-Browser refresh
-      ↓
-getActiveSession()
-      ↓
-Session exists?
-      │
-   ┌──┴──┐
-   │     │
-  Yes    No
-   │     │
-Restore  Idle
-timer
+              ┌──────────────────────────────┐
+              │ localStorage checkpoint?     │
+              └───┬──────────────────────┬───┘
+             yes  │                      │ no
+                  ▼                      ▼
+        about this same row?      ──► adopt the server's row,
+                  │                elapsed = now - started_at
+           ┌──────┴───────┐          (no pause state exists
+           │              │           to recover)
+          yes             no
+           │              │
+           ▼              ▼
+    use it — it holds   server's row is gone
+    the pause state     (finished elsewhere, deleted,
+    the server never    or "Reset data"): drop it
+    heard about
 ```
 
-The application must never depend on React state alone to know whether a session exists.
+The store lives outside React, so a route change does not reset anything either —
+`Timer` is only mounted on `/`, and navigating to `/analytics` and back used to
+mean a fresh mount.
+
+An RSC revalidation hands the timer a brand new `initialSession` object after
+every mutation. The server has no idea the user paused, so the store refuses to
+overwrite a record it already holds unless the server is pointing at a different
+row.
+
+Skipping that reconcile when the remote id is unchanged is an optimisation — it
+stops a refresh from re-reading `localStorage` and re-sealing the anchor every
+time. It is not allowed to skip the one case that has real work to do: the remote
+being `null` while a local record exists. `null` means both "nothing is open" and
+"the row you were holding is gone", and conflating them left a timer counting
+against a deleted session. See `canSkipReconcile` and ISSUES #13.
+
+### What the server may not render
+
+The server cannot know the elapsed time, and must not pretend otherwise. The real
+number depends on `performance.now()`, on `localStorage`, and on whether the user
+paused — and the server is never told about the last one. Computing
+`now - startedAt` from an `active` row renders a confident wrong figure: loading a
+session paused at 36 seconds showed `00:00:58` and then settled on `00:00:36`,
+with React reporting a hydration mismatch and rebuilding the tree.
+
+So `getServerSnapshot` and `getClientSnapshot` are different functions. Both
+return the same constant until an effect after hydration runs, and the
+running/paused card renders a `--:--:--` placeholder for those few frames. The
+idle hero is **not** gated — with no session it is a pure function of
+`initialSession === null`, and gating it too just hid "Ready to focus?" on every
+load.
+
+The application must never depend on React state alone to know whether a session
+exists — nor on the server alone to know whether the user is paused, and never
+expect the two to render the same number.
 
 ---
 
@@ -687,8 +797,6 @@ The actual V1 API is intentionally small:
 ```text
 createSession()
 getActiveSession()
-pauseSession()
-resumeSession()
 finishSession()
 updateSession()
 deleteSession()

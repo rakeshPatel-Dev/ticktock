@@ -68,12 +68,20 @@ fromEpochSeconds(seconds: number): Date   // new Date(seconds * 1000)
 boundary — `StudySessionDoc.startedAt` is a `Date` and `StudySession.startedAt` is a `number`,
 but a stray `* 1000` is a silent bug that only surfaces as an empty analytics page.
 
-### `pausedAt` owns the pause anchor, `updatedAt` does not
+### `pausedAt` is legacy, and only read
 
-`pausedAt` is written **only** by `pauseSession` (sets it) and `resumeSession` / `finishSession`
-(clear it to `null`). Both of those actions bank the open interval with
-`Math.max(0, now - pauseAnchorSeconds(session))`, and `db/schema.ts#pauseAnchorSeconds` is the only
-sanctioned reader, so the server actions and the client timer cannot drift apart.
+**No code path writes `pausedAt` any more.** Pausing is local state in `lib/timer-store.ts` and
+never reaches the database, so a row is `active` for its whole life and flips to `completed` once.
+The field is read in exactly two places, both for rows that predate that change:
+
+- `db/schema.ts#pauseAnchorSeconds` — the sanctioned reader.
+- `lib/timer-store.ts#adoptFromServer` — rebuilding a live timer for a `paused` row it finds in
+  the database.
+- `lib/actions.ts#finishSession` — deriving exact totals for a `paused` row, which has enough
+  information on its own and so needs no client input.
+
+A `paused` row is now necessarily a legacy one, which is what makes those three call sites total
+rather than merely likely.
 
 It used to be overloaded onto `updatedAt`, which held only while pause/resume was the sole writer
 of that field. Editing the subject, notes, or goal of a **paused** session moved the anchor forward
@@ -154,8 +162,18 @@ durationSeconds = 3720
 ```
 
 The UI converts this to `1h 02m`. Never store a counter, and never store a formatted string.
-`calculateDuration` in `lib/timer.ts` derives focused time as `elapsed − paused`, so the recorded
-value is always a function of timestamps rather than of how often a `setInterval` fired.
+
+The value is measured by the client and sent in `finishSession`, then clamped server-side to the
+wall-clock span `endedAt - startedAt` so a wrong system clock cannot write a nonsense duration. The
+invariant enforced is the same one as before, in a different place:
+
+```text
+durationSeconds + pausedSeconds <= endedAt - startedAt
+```
+
+Asserted in `scripts/verify-e2e.ts` as the stopwatch state machine: elapsed is a function of
+`now` and the segment anchors, so it is identical at any sampling rate, and it survives a reload
+that restarts the monotonic clock at zero.
 
 ---
 
