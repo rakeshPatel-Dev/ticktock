@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AnalyticsStream } from "@/components/analytics-stream";
 import { AnalyticsSkeleton } from "@/components/skeletons";
+import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +11,11 @@ export const dynamic = "force-dynamic";
  */
 export default function AnalyticsPage() {
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12 w-full">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          Analytics
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Understand where your focus and study time goes with clear, honest data.
-        </p>
-      </div>
+    <div className="space-y-5 w-full">
+      <PageHeader
+        title="Analytics"
+        description="Where your focus actually goes, week by week."
+      />
 
       <Suspense fallback={<AnalyticsSkeleton />}>
         <AnalyticsStream />

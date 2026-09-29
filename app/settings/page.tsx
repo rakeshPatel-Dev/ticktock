@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { SettingsStream } from "@/components/settings-stream";
 import { SettingsSkeleton } from "@/components/skeletons";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata = {
   title: "Settings - TickTock",
@@ -9,15 +10,11 @@ export const metadata = {
 
 export default function SettingsPage() {
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12 w-full">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          Settings
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your account, focus goals, theme, and data export.
-        </p>
-      </div>
+    <div className="space-y-5 w-full">
+      <PageHeader
+        title="Settings"
+        description="Your account, goals, appearance, and data."
+      />
 
       <Suspense fallback={<SettingsSkeleton />}>
         <SettingsStream />

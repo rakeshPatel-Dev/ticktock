@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default function DashboardPage() {
   return (
-    <div className="max-w-5xl mx-auto space-y-10 pb-12 w-full">
+    <div className="space-y-4 w-full">
       <Suspense fallback={<TimerSkeleton />}>
         <TimerStream />
       </Suspense>
