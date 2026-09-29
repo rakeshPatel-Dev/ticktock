@@ -1,10 +1,12 @@
 import {
   getDailyAnalytics,
+  getHeatmapAnalytics,
   getSubjectAnalytics,
   getTopicAnalytics,
 } from "@/lib/queries";
 import { getUserTimeZone, requireUser } from "@/lib/session";
-import { getWeekRange } from "@/lib/timezone";
+import { getHeatmapRange, getWeekRange } from "@/lib/timezone";
+import { HEATMAP_WEEKS } from "@/lib/heatmap";
 import { AnalyticsView } from "@/components/analytics-view";
 import { TimezoneSync } from "@/components/timezone-sync";
 
@@ -16,7 +18,13 @@ import { TimezoneSync } from "@/components/timezone-sync";
  * each other — the cards summarise `dailyMetrics`, and the panels are scoped to
  * the same range so their totals agree with it. Splitting them would mean either
  * repeating the aggregations or rendering panels that briefly disagree with the
- * chart above them. One boundary, three queries, all fired at once.
+ * chart above them.
+ *
+ * The heatmap is the one exception, and it is a fourth query rather than a
+ * wider version of the first three. It answers a different question on a
+ * different timescale: the week-scoped numbers describe this week, while the
+ * heatmap describes a year. Its own header states its own range so the two are
+ * never read as the same dataset.
  */
 export async function AnalyticsStream() {
   const user = await requireUser();
@@ -30,11 +38,22 @@ export async function AnalyticsStream() {
   const week = getWeekRange(reference, timeZone);
   const range = { from: week.from, to: week.to };
 
-  const [dailyMetrics, subjectMetrics, topicMetrics] = await Promise.all([
-    getDailyAnalytics(user.id, reference, timeZone),
-    getSubjectAnalytics(user.id, range),
-    getTopicAnalytics(user.id, range),
-  ]);
+  // A separate range object, built from the same `reference` and `timeZone` so
+  // the two cannot disagree about where "now" is. Sharing the week range here
+  // would be the ISSUES.md #2 bug with a year's worth of cells behind it.
+  const heatmap = getHeatmapRange(reference, timeZone, HEATMAP_WEEKS);
+
+  const [dailyMetrics, subjectMetrics, topicMetrics, heatmapMetrics] =
+    await Promise.all([
+      getDailyAnalytics(user.id, reference, timeZone),
+      getSubjectAnalytics(user.id, range),
+      getTopicAnalytics(user.id, range),
+      getHeatmapAnalytics(
+        user.id,
+        { from: heatmap.from, to: heatmap.to },
+        timeZone
+      ),
+    ]);
 
   const totalWeeklySeconds = dailyMetrics.reduce(
     (acc, cur) => acc + cur.durationSeconds,
@@ -73,6 +92,10 @@ export async function AnalyticsStream() {
         totalWeeklySessions={totalWeeklySessions}
         avgSessionSeconds={avgSessionSeconds}
         longestDayLabel={longestDayLabel}
+        heatmapColumns={heatmap.columns}
+        heatmapMetrics={heatmapMetrics}
+        heatmapToday={heatmap.today}
+        heatmapWeeks={HEATMAP_WEEKS}
       />
     </>
   );

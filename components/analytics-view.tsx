@@ -8,7 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { formatDuration } from "@/lib/timer";
 import { getSubjectColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import type { DailyMetric, SubjectMetric, TopicMetric } from "@/lib/queries";
+import { HeatmapView } from "@/components/heatmap-view";
+import type {
+  DailyMetric,
+  HeatmapMetric,
+  SubjectMetric,
+  TopicMetric,
+} from "@/lib/queries";
 
 interface AnalyticsViewProps {
   dailyMetrics: DailyMetric[];
@@ -18,6 +24,12 @@ interface AnalyticsViewProps {
   totalWeeklySessions: number;
   avgSessionSeconds: number;
   longestDayLabel: string;
+  /** Week columns for the heatmap, oldest first. Year range, not week range. */
+  heatmapColumns: string[][];
+  heatmapMetrics: HeatmapMetric[];
+  /** The user's current `YYYY-MM-DD`; cells after it render as future. */
+  heatmapToday: string;
+  heatmapWeeks: number;
 }
 
 export function AnalyticsView({
@@ -28,6 +40,10 @@ export function AnalyticsView({
   totalWeeklySessions,
   avgSessionSeconds,
   longestDayLabel,
+  heatmapColumns,
+  heatmapMetrics,
+  heatmapToday,
+  heatmapWeeks,
 }: AnalyticsViewProps) {
   // Max duration in dailyMetrics for chart scale
   const maxDaySeconds = Math.max(
@@ -146,6 +162,20 @@ export function AnalyticsView({
           </div>
         </CardContent>
       </Card>
+
+      {/*
+        The heatmap sits between the week chart and the two panels, and it is
+        deliberately NOT in the week range the rest of this page uses — it is a
+        year. Its own header says "Last 52 weeks" so it cannot be misread as
+        part of the "This Week" numbers above it. Reusing `range` here would be
+        the exact bug ISSUES.md #2 documents, in a new place.
+      */}
+      <HeatmapView
+        columns={heatmapColumns}
+        metrics={heatmapMetrics}
+        today={heatmapToday}
+        weeks={heatmapWeeks}
+      />
 
       {/* Time By Subject & Time By Topic */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
