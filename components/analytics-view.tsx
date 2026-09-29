@@ -1,14 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Clock, CheckCircle2, TrendingUp, Calendar, BookOpen, Layers } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { formatDuration } from "@/lib/timer";
-import { getSubjectColor } from "@/lib/colors";
-import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { HeatmapView } from "@/components/heatmap-view";
+import { cn } from "@/lib/utils";
 import type {
   DailyMetric,
   HeatmapMetric,
@@ -51,111 +48,87 @@ export function AnalyticsView({
     3600 // minimum 1 hour baseline so empty or small days look balanced
   );
 
+  // The same divided strip the dashboard uses, for the same reason: these are
+  // four figures, not four cards. They each had a differently coloured icon
+  // circle before, which made a spec sheet look like a dashboard.
+  const stats = [
+    { label: "This week", value: formatDuration(totalWeeklySeconds) },
+    { label: "Sessions", value: String(totalWeeklySessions) },
+    { label: "Avg session", value: formatDuration(avgSessionSeconds) },
+    { label: "Longest day", value: longestDayLabel || "—" },
+  ];
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Top 4 Insight Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <Card className="border-border/60 bg-card/40 rounded-4xl shadow-xs">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">This Week</span>
-              <div className="h-9 w-9 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center ring-1 ring-sky-500/20 shadow-sm shadow-sky-500/20">
-                <Clock className="h-4 w-4" />
+    <div className="space-y-4 pb-4">
+      <Card>
+        <CardContent className="flex">
+          <dl className="grid w-full grid-cols-2 gap-y-5 sm:grid-cols-4 sm:gap-y-0 [&>*]:min-w-0">
+            {stats.map((stat, i) => (
+              <div
+                key={stat.label}
+                className={cn(
+                  "min-w-0",
+                  // Two-up on phones, four-up from `sm`. The rule follows the
+                  // wrap: a hairline on the left of every cell but the one that
+                  // starts a row — odd indices on phones, everything but the
+                  // first on wider screens.
+                  i % 2 === 1 && "border-l border-border pl-5",
+                  i > 0 && "sm:border-l sm:border-border sm:pl-5"
+                )}
+              >
+                <dt className="type-label">{stat.label}</dt>
+                <dd
+                  className={cn(
+                    "type-metric mt-1.5 text-[22px]",
+                    stat.label === "Longest day" && "truncate text-[17px]"
+                  )}
+                >
+                  {stat.value}
+                </dd>
               </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
-              {formatDuration(totalWeeklySeconds)}
-            </p>
-          </CardContent>
-        </Card>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
 
-        <Card className="border-border/60 bg-card/40 rounded-4xl shadow-xs">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Sessions</span>
-              <div className="h-9 w-9 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/20">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
-              {totalWeeklySessions}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card/40 rounded-4xl shadow-xs">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Average</span>
-              <div className="h-9 w-9 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 flex items-center justify-center ring-1 ring-orange-500/20 shadow-sm shadow-orange-500/20">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
-              {formatDuration(avgSessionSeconds)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card/40 rounded-4xl shadow-xs">
-          <CardContent className="p-5 sm:p-6 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">Longest Day</span>
-              <div className="h-9 w-9 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center ring-1 ring-rose-500/20 shadow-sm shadow-rose-500/20">
-                <Calendar className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground truncate">
-              {longestDayLabel || "—"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Daily Activity Bar Chart */}
-      <Card className="border-border/60 bg-card/50 shadow-xs rounded-4xl">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg sm:text-xl font-bold flex items-center justify-between">
-            <span>Daily Activity (This Week)</span>
-            <span className="text-xs sm:text-sm font-semibold text-muted-foreground">
-              Mon – Sun
-            </span>
-          </CardTitle>
+      <Card>
+        <CardHeader className="flex items-baseline justify-between gap-4">
+          <CardTitle>Daily activity</CardTitle>
+          <span className="text-[12px] text-muted-foreground">Mon – Sun</span>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end pt-6 pb-2 h-44 border-b border-border/40 overflow-x-hidden">
+          <div className="flex h-44 items-end gap-2 sm:gap-4">
             {dailyMetrics.map((day) => {
               const heightPercent =
                 maxDaySeconds > 0
-                  ? Math.max(8, Math.round((day.durationSeconds / maxDaySeconds) * 100))
-                  : 8;
+                  ? Math.max(4, Math.round((day.durationSeconds / maxDaySeconds) * 100))
+                  : 4;
 
               return (
                 <div
                   key={day.date}
-                  className="flex flex-col items-center gap-2 h-full justify-end group relative"
+                  className="group flex h-full flex-1 flex-col justify-end gap-2"
                 >
-                  {/* Tooltip on hover */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute left-1/2 -translate-x-1/2 -top-8 px-3 py-1 bg-foreground text-background text-xs font-mono font-semibold rounded-full shadow-md pointer-events-none whitespace-nowrap z-10">
-                    {formatDuration(day.durationSeconds)} ({day.sessionCount} sessions)
-                  </div>
-
-                  <div className="w-full bg-muted/40 rounded-t-xl h-full flex items-end overflow-hidden">
+                  <div className="relative flex h-full items-end">
+                    {/* Value on hover, as a quiet label rather than a bubble
+                        that pops in with a shadow. */}
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                      {formatDuration(day.durationSeconds)}
+                    </div>
                     <div
-                      style={{ height: `${day.durationSeconds > 0 ? heightPercent : 0}%` }}
-                      className="w-full bg-sky-500 hover:bg-sky-400 transition-all duration-300 rounded-t-xl"
+                      style={{ height: `${heightPercent}%` }}
+                      className={cn(
+                        "w-full rounded-t-md bg-primary/85 transition-colors",
+                        day.durationSeconds > 0
+                          ? "group-hover:bg-primary"
+                          : "bg-muted"
+                      )}
                     />
                   </div>
 
-                  <div className="space-y-0.5 text-center">
-                    <span className="text-xs sm:text-sm font-bold text-foreground">
-                      {day.dayLabel}
-                    </span>
-                    <p className="text-xs font-mono text-muted-foreground font-semibold">
-                      {day.durationSeconds > 0 ? formatDuration(day.durationSeconds) : "0m"}
-                    </p>
-                  </div>
+                  <span className="text-center text-[11px] text-muted-foreground">
+                    {day.dayLabel}
+                  </span>
                 </div>
               );
             })}
@@ -177,86 +150,73 @@ export function AnalyticsView({
         weeks={heatmapWeeks}
       />
 
-      {/* Time By Subject & Time By Topic */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Time by Subject */}
-        <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg sm:text-xl font-bold flex items-center gap-2.5">
-              <BookOpen className="h-5 w-5 text-sky-500" />
-              Time by Subject
-            </CardTitle>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>By subject</CardTitle>
+            <CardDescription>This week, by share of focused time.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             {subjectMetrics.length === 0 ? (
-              <p className="text-sm sm:text-base text-muted-foreground py-8 text-center">
-                Nothing tracked yet this week. Complete a session to see your subject breakdown!
+              <p className="py-8 text-center text-[13px] text-muted-foreground">
+                Nothing tracked this week yet.
               </p>
             ) : (
-              subjectMetrics.map((item) => {
-                const theme = getSubjectColor(item.subject);
-                return (
-                  <div key={item.subject} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2.5">
-                        <span className={cn("h-3 w-3 rounded-full", theme.dot)} />
-                        <span className="font-bold text-foreground">
-                          {item.subject}
+              <dl className="space-y-4">
+                {subjectMetrics.map((item) => (
+                  <div key={item.subject} className="space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="truncate text-[13px] font-medium text-foreground">
+                        {item.subject}
+                      </dt>
+                      <dd className="shrink-0 font-mono text-[12px] tabular-nums text-muted-foreground">
+                        {formatDuration(item.durationSeconds)}
+                        <span className="ml-1.5 text-muted-foreground/70">
+                          {item.percentage}%
                         </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground font-mono font-semibold text-xs sm:text-sm">
-                        <span>{formatDuration(item.durationSeconds)}</span>
-                        <span className="text-xs text-muted-foreground/70">
-                          ({item.percentage}%)
-                        </span>
-                      </div>
+                      </dd>
                     </div>
-                    <Progress
-                      value={item.percentage}
-                      indicatorClassName={theme.dot}
-                      className="h-2.5"
-                    />
+                    {/* One series, so one colour. The subject is named on the
+                        row; the bar only has to show magnitude. */}
+                    <Progress value={item.percentage} className="h-1" />
                   </div>
-                );
-              })
+                ))}
+              </dl>
             )}
           </CardContent>
         </Card>
 
-        {/* Time by Topic */}
-        <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg sm:text-xl font-bold flex items-center gap-2.5">
-              <Layers className="h-5 w-5 text-orange-500" />
-              Time by Topic
-            </CardTitle>
+        <Card>
+          <CardHeader>
+            <CardTitle>By topic</CardTitle>
+            <CardDescription>Your longest sessions this week.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent>
             {topicMetrics.length === 0 ? (
-              <p className="text-sm sm:text-base text-muted-foreground py-8 text-center">
-                No topic breakdown available yet. Add topics when starting a session to see detailed insights!
+              <p className="py-8 text-center text-[13px] text-muted-foreground">
+                No topics recorded this week. Add one when starting a session.
               </p>
             ) : (
-              <div className="space-y-2.5">
+              <ul className="divide-y divide-border/70">
                 {topicMetrics.slice(0, 8).map((t) => (
-                  <div
+                  <li
                     key={`${t.subject}-${t.topic}`}
-                    className="flex items-center justify-between p-3 px-4.5 rounded-full bg-muted/40 border border-border/40 hover:bg-muted/60 transition-colors"
+                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
                   >
-                    <div>
-                      <span className="font-bold text-sm sm:text-base text-foreground">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium text-foreground">
                         {t.topic}
-                      </span>
-                      <span className="text-muted-foreground text-xs sm:text-sm font-medium block">
+                      </p>
+                      <p className="truncate text-[12px] text-muted-foreground">
                         {t.subject}
-                      </span>
+                      </p>
                     </div>
-                    <Badge variant="secondary" className="font-mono text-xs sm:text-sm font-bold rounded-full px-3.5 py-1">
+                    <span className="shrink-0 font-mono text-[12px] tabular-nums text-secondary-foreground">
                       {formatDuration(t.durationSeconds)}
-                    </Badge>
-                  </div>
+                    </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </CardContent>
         </Card>

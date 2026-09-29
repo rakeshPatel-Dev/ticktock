@@ -7,7 +7,6 @@ import {
   Moon,
   Sun,
   Laptop,
-  AlertTriangle,
   FileJson,
   FileSpreadsheet,
   Check,
@@ -29,6 +28,39 @@ import {
   parseDailyGoalHours,
 } from "@/lib/daily-goal";
 import { AccountCard } from "@/components/account-card";
+import { cn } from "@/lib/utils";
+
+/**
+ * One row, label left, control right.
+ *
+ * A settings row is a definition list, not a card per setting — so the label is
+ * the thing you read and the control is a fixed-width object on the right, and
+ * a hairline separates rows instead of each one floating in its own frame.
+ */
+function SettingRow({
+  label,
+  labelId,
+  description,
+  children,
+}: {
+  label: string;
+  /** Set when a control on the right is grouped by this row's label. */
+  labelId?: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-border/60 py-4 first:pt-0 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="min-w-0">
+        <p id={labelId} className="text-[15px] font-medium text-foreground">
+          {label}
+        </p>
+        <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
 
 export function SettingsView({ username }: { username: string }) {
   const { theme, setTheme } = useTheme();
@@ -81,221 +113,181 @@ export function SettingsView({ username }: { username: string }) {
     setTimeout(() => setResetSuccess(false), 3000);
   };
 
+  const themes = [
+    { value: "light", label: "Light", Icon: Sun },
+    { value: "dark", label: "Dark", Icon: Moon },
+    { value: "system", label: "System", Icon: Laptop },
+  ] as const;
+
   return (
-    <div className="space-y-6 w-full pb-12">
-      {/* Account */}
+    <div className="space-y-4 w-full pb-4">
       <AccountCard username={username} />
 
-      {/* General Preferences */}
-      <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg sm:text-xl font-bold">General</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
-            Configure your personal tracking preferences.
-          </CardDescription>
+      <Card>
+        <CardHeader>
+          <CardTitle>General</CardTitle>
+          <CardDescription>Your tracking preferences.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Daily Goal */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-b border-border/40 pb-4">
-            <div className="space-y-0.5">
-              <label htmlFor={goalFieldId} className="text-base font-semibold text-foreground">
-                Daily Focus Goal
-              </label>
-              <p className="text-sm  mt-1 text-muted-foreground">
-                Target hours of focused study per day.
-              </p>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <Input
-                id={goalFieldId}
-                type="number"
-                inputMode="decimal"
-                min={MIN_DAILY_GOAL_HOURS}
-                max={MAX_DAILY_GOAL_HOURS}
-                step="0.5"
-                value={dailyGoal}
-                onChange={(e) => {
-                  setDailyGoal(e.target.value);
-                  setGoalError(null);
-                }}
-                aria-invalid={goalError ? true : undefined}
-                aria-describedby={goalError ? goalErrorId : undefined}
-                className="w-24 font-mono text-center rounded-full text-base h-11 mt-1"
-              />
-              <span className="text-sm font-semibold text-muted-foreground">hours</span>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={handleSaveGoal}
-                className="gap-2 rounded-full font-semibold h-11 px-5"
-              >
-                {savedGoal ? (
-                  <>
-                    <Check className="h-4 w-4 text-emerald-500" />
-                    Saved
-                  </>
-                ) : (
-                  "Save"
-                )}
-              </Button>
-            </div>
-          </div>
+        <CardContent>
+          <SettingRow
+            label="Daily focus goal"
+            description="Target hours of focused study per day."
+          >
+            <Input
+              id={goalFieldId}
+              type="number"
+              inputMode="decimal"
+              min={MIN_DAILY_GOAL_HOURS}
+              max={MAX_DAILY_GOAL_HOURS}
+              step="0.5"
+              value={dailyGoal}
+              onChange={(e) => {
+                setDailyGoal(e.target.value);
+                setGoalError(null);
+              }}
+              aria-invalid={goalError ? true : undefined}
+              aria-describedby={goalError ? goalErrorId : undefined}
+              className="w-20 font-mono text-center"
+            />
+            <span className="text-[13px] text-muted-foreground">hours</span>
+            <Button variant="outline" onClick={handleSaveGoal}>
+              {savedGoal ? (
+                <>
+                  <Check className="size-3.5 text-primary" />
+                  Saved
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </SettingRow>
+
           {goalError && (
-            <p id={goalErrorId} role="alert" className="text-sm font-medium text-destructive">
+            <p id={goalErrorId} role="alert" className="pt-3 text-[13px] font-medium text-destructive">
               {goalError}
             </p>
           )}
 
-          {/* Theme */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-            <div className="space-y-0.5">
-              <span
-                id={appearanceGroupId}
-                className="text-base font-semibold text-foreground"
-              >
-                Appearance
-              </span>
-              <p className="text-sm  mt-1 text-muted-foreground">
-                Choose light, dark, or follow system theme.
-              </p>
-            </div>
-            <div
-              role="group"
-              aria-labelledby={appearanceGroupId}
-              className="flex items-center gap-1.5 bg-muted/60 p-1.5 rounded-full border border-border/50"
+          <div className="pt-5">
+            <SettingRow
+              label="Appearance"
+              labelId={appearanceGroupId}
+              description="Match your system, or pick one."
             >
-              <Button
-                variant={theme === "light" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={theme === "light"}
-                onClick={() => setTheme("light")}
-                className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
+              <div
+                role="group"
+                aria-labelledby={appearanceGroupId}
+                className="flex items-center gap-0.5 rounded-full bg-muted/70 p-1"
               >
-                <Sun className="h-4 w-4 text-amber-500" /> Light
-              </Button>
-              <Button
-                variant={theme === "dark" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={theme === "dark"}
-                onClick={() => setTheme("dark")}
-                className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
-              >
-                <Moon className="h-4 w-4 text-sky-500" /> Dark
-              </Button>
-              <Button
-                variant={theme === "system" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={theme === "system"}
-                onClick={() => setTheme("system")}
-                className="h-9 px-3.5 text-sm gap-2 rounded-full font-medium"
-              >
-                <Laptop className="h-4 w-4" /> System
-              </Button>
-            </div>
+                {themes.map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={theme === value}
+                    onClick={() => setTheme(value)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-all duration-200",
+                      theme === value
+                        ? "bg-primary text-primary-foreground font-semibold shadow-[0_2px_10px_-2px_color-mix(in_oklch,var(--primary)_50%,transparent),inset_0_1px_0_rgba(255,255,255,0.25)]"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
           </div>
         </CardContent>
       </Card>
 
-      {/* Data Export & Portability */}
-      <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg sm:text-xl font-bold">Data Export</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
-            Your data belongs to you. Export your complete session logs anytime.
+      <Card>
+        <CardHeader>
+          <CardTitle>Data export</CardTitle>
+          <CardDescription>
+            Your data belongs to you. Download your complete session log at any time.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+        <CardContent>
+          <div className="flex flex-col gap-2 sm:flex-row">
             <a href="/api/export?format=json" download className="flex-1">
-              <Button variant="outline" className="w-full justify-center gap-2 text-sm font-semibold rounded-full h-11">
-                <FileJson className="h-4 w-4 text-sky-500" />
-                Export as JSON
+              <Button variant="outline" className="w-full">
+                <FileJson className="size-4" />
+                Export JSON
               </Button>
             </a>
             <a href="/api/export?format=csv" download className="flex-1">
-              <Button variant="outline" className="w-full justify-center gap-2 text-sm font-semibold rounded-full h-11">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
-                Export as CSV
+              <Button variant="outline" className="w-full">
+                <FileSpreadsheet className="size-4" />
+                Export CSV
               </Button>
             </a>
           </div>
         </CardContent>
       </Card>
 
-      {/* Danger Zone: Reset Data */}
-      <Card className="border-destructive/30 bg-destructive/5 rounded-4xl shadow-xs">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg sm:text-xl font-bold text-destructive flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            Danger Zone
-          </CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
-            Permanently clear all recorded sessions. This action cannot be undone.
+      <Card className="border-destructive/25">
+        <CardHeader>
+          <CardTitle className="text-destructive">Delete all data</CardTitle>
+          <CardDescription>
+            Permanently clear every recorded session. This cannot be undone.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {resetSuccess && (
-            <div className="mb-3.5 p-3 text-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-500/20 font-medium">
-              All session data has been completely erased.
-            </div>
+            <p className="mb-3 rounded-lg border border-primary/20 bg-primary/8 px-3 py-2 text-[13px] font-medium text-primary">
+              All session data has been erased.
+            </p>
           )}
 
           <Button
-            variant="destructive"
-            size="default"
+            variant="outline"
             onClick={() => setIsResetDialogOpen(true)}
-            className="gap-2 text-sm font-semibold rounded-full h-11 px-5"
+            className="border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="size-4" />
             Clear all data
           </Button>
         </CardContent>
       </Card>
 
-      {/* Clear Data Confirmation Dialog */}
       <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-4xl">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Confirm Data Reset
-            </DialogTitle>
+            <DialogTitle>Delete all data</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 pt-2">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              This will permanently delete all session records from your database.
-              To confirm, please type <strong className="text-foreground">delete all</strong> below:
+          <div className="space-y-4">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              This permanently deletes every session record. To confirm, type{" "}
+              <span className="font-mono text-foreground">delete all</span> below.
             </p>
 
             <Input
               value={resetConfirmText}
               onChange={(e) => setResetConfirmText(e.target.value)}
               placeholder="delete all"
-              className="font-mono text-sm rounded-full"
+              className="font-mono"
             />
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2">
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
                 onClick={() => {
                   setIsResetDialogOpen(false);
                   setResetConfirmText("");
                 }}
                 disabled={isResetting}
-                className="rounded-full"
               >
                 Cancel
               </Button>
               <Button
                 variant="destructive"
-                size="sm"
                 onClick={handleResetData}
                 disabled={resetConfirmText.toLowerCase() !== "delete all" || isResetting}
-                className="rounded-full"
               >
-                {isResetting ? "Clearing..." : "Permanently Delete"}
+                {isResetting ? "Deleting…" : "Delete everything"}
               </Button>
             </div>
           </div>

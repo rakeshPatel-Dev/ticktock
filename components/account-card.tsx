@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useId } from "react";
-import { LogOut, UserRound, KeyRound, Check } from "lucide-react";
+import { LogOut, Check } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -23,7 +23,7 @@ import {
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="rounded-full min-w-28">
+    <Button type="submit" disabled={pending} variant="outline" className="shrink-0">
       {pending ? pendingLabel : label}
     </Button>
   );
@@ -32,22 +32,22 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <div
+    <p
       role="alert"
-      className="p-3 text-sm rounded-2xl bg-destructive/10 text-destructive font-medium border border-destructive/20"
+      className="rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2 text-[13px] font-medium text-destructive"
     >
       {message}
-    </div>
+    </p>
   );
 }
 
 function FieldSuccess({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <div className="p-3 text-sm rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20 flex items-center gap-2">
-      <Check className="h-4 w-4 shrink-0" />
+    <p className="flex items-center gap-1.5 text-[13px] font-medium text-primary">
+      <Check className="size-3.5 shrink-0" />
       {message}
-    </div>
+    </p>
   );
 }
 
@@ -73,62 +73,49 @@ export function AccountCard({ username }: { username: string }) {
   };
 
   return (
-    <Card className="border-border/60 bg-card/50 rounded-4xl shadow-xs">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg sm:text-xl font-bold flex items-center gap-2">
-          <div className="p-1 rounded-full bg-sky-500/10 text-sky-500">
-            <UserRound className="h-5 w-5" />
-          </div>
-          Account
-        </CardTitle>
-        <CardDescription className="text-sm text-muted-foreground">
-          Manage your username, password, and sign-in.
-        </CardDescription>
+    <Card>
+      <CardHeader>
+        <CardTitle>Account</CardTitle>
+        <CardDescription>Your username, password, and sign-in.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Username */}
-        <form
-          action={usernameAction}
-          className="space-y-3 pt-1 border-b border-border/40 pb-5"
-        >
+      <CardContent className="space-y-6">
+        <form action={usernameAction} className="space-y-2.5">
           <FieldError message={usernameState?.error} />
           <FieldSuccess message={usernameState?.success} />
-          <div className="space-y-1.5">
-            <label htmlFor={usernameId} className="text-sm font-semibold text-foreground">
-              Username
-            </label>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <Input
-                id={usernameId}
-                name="username"
-                defaultValue={username}
-                autoComplete="username"
-                required
-                className="h-10 rounded-full text-base"
-              />
-              <SubmitButton label="Update username" pendingLabel="Saving..." />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              3–30 characters. Letters, numbers, dots, dashes and underscores.
-            </p>
+          <label
+            htmlFor={usernameId}
+            className="block text-[13px] font-medium text-foreground"
+          >
+            Username
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              id={usernameId}
+              name="username"
+              defaultValue={username}
+              autoComplete="username"
+              required
+            />
+            <SubmitButton label="Update" pendingLabel="Saving…" />
           </div>
+          <p className="text-[12px] text-muted-foreground">
+            3–30 characters. Letters, numbers, dots, dashes and underscores.
+          </p>
         </form>
 
-        {/* Password */}
-        <form
-          action={passwordAction}
-          className="space-y-3 pt-1 border-b border-border/40 pb-5"
-        >
-          <div className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold text-foreground">Change password</h3>
-          </div>
+        <form action={passwordAction} className="space-y-2.5 border-t border-border/70 pt-6">
           <FieldError message={passwordState?.error} />
           <FieldSuccess message={passwordState?.success} />
-          <div className="grid sm:grid-cols-3 gap-2">
-            <div className="space-y-1.5 sm:col-span-1">
-              <label htmlFor={currentPasswordId} className="text-xs font-semibold text-foreground">
-                Current password
+          <label className="block text-[13px] font-medium text-foreground">
+            Change password
+          </label>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <label
+                htmlFor={currentPasswordId}
+                className="block text-[12px] text-muted-foreground"
+              >
+                Current
               </label>
               <Input
                 id={currentPasswordId}
@@ -137,12 +124,14 @@ export function AccountCard({ username }: { username: string }) {
                 autoComplete="current-password"
                 placeholder="••••••••"
                 required
-                className="h-10 rounded-full"
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-1">
-              <label htmlFor={newPasswordId} className="text-xs font-semibold text-foreground">
-                New password
+            <div className="space-y-1.5">
+              <label
+                htmlFor={newPasswordId}
+                className="block text-[12px] text-muted-foreground"
+              >
+                New
               </label>
               <Input
                 id={newPasswordId}
@@ -151,12 +140,14 @@ export function AccountCard({ username }: { username: string }) {
                 autoComplete="new-password"
                 placeholder="At least 8 characters"
                 required
-                className="h-10 rounded-full"
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-1">
-              <label htmlFor={confirmPasswordId} className="text-xs font-semibold text-foreground">
-                Confirm new password
+            <div className="space-y-1.5">
+              <label
+                htmlFor={confirmPasswordId}
+                className="block text-[12px] text-muted-foreground"
+              >
+                Confirm
               </label>
               <Input
                 id={confirmPasswordId}
@@ -165,25 +156,23 @@ export function AccountCard({ username }: { username: string }) {
                 autoComplete="new-password"
                 placeholder="Re-enter new password"
                 required
-                className="h-10 rounded-full"
               />
             </div>
           </div>
-          <div>
-            <SubmitButton label="Update password" pendingLabel="Updating..." />
+          <div className="pt-1">
+            <SubmitButton label="Update password" pendingLabel="Updating…" />
           </div>
         </form>
 
-        {/* Sign out */}
-        <div className="pt-1">
+        <div className="border-t border-border/70 pt-6">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="gap-2 text-sm font-semibold rounded-full h-11 px-5"
+            className="-ml-2.5 text-muted-foreground hover:text-foreground"
           >
-            <LogOut className="h-4 w-4" />
-            {signingOut ? "Signing out..." : "Sign out"}
+            <LogOut className="size-4" />
+            {signingOut ? "Signing out…" : "Sign out"}
           </Button>
         </div>
       </CardContent>
