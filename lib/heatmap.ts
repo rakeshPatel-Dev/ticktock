@@ -1,5 +1,5 @@
 /**
- * Heatmap colour scale.
+ * The heatmap colour scale.
  *
  * Pure — no React, no Tailwind import, no `window`. The thresholds are asserted
  * in `scripts/verify-e2e.ts` and the class strings are read by the component, so
@@ -13,9 +13,22 @@
  * thresholds cannot be distorted by one outlier, and a 3-hour day looks the same
  * today as it did last month.
  *
- * Level 0 is the absent swatch and is deliberately the plainest thing on the
- * card. A day with no sessions is a fact about the calendar, not a failure, and
- * the PRD is explicit that progress must never feel punitive (docs/PRD.md §14).
+ * The ramp is a single hue at rising intensity. This is one sequential measure —
+ * focus time — so it is one hue; a second hue here would imply a second variable
+ * that does not exist. It was green, which collided with the "running" state
+ * colour; it is now the app accent, so the only saturated colour in the
+ * interface means the timer is live.
+ *
+ * Level 0 is the absent swatch, and it is the one that had to be rethought when
+ * the surfaces gained depth. It used to be `bg-muted/70`, on the assumption that
+ * a nearly-invisible cell was the quietest possible answer — but the card is
+ * white and `--muted` is itself a near-white, so at 70% alpha it landed within a
+ * point or two of the card behind it and the whole grid read as an empty panel.
+ * Level 0 is now full-strength `--muted`, no alpha: still the quietest thing on
+ * the card, and now actually a cell. A day with no sessions is a fact about the
+ * calendar, not a failure, and the PRD is explicit that progress must never feel
+ * punitive (docs/PRD.md §14) — which is a reason for it to be neutral, not a
+ * reason for it to be invisible.
  */
 
 /** Weeks shown, oldest first. A year reads as a year; 26 reads as a semester. */
@@ -42,31 +55,31 @@ export const HEATMAP_LEVELS: HeatmapLevel[] = [
   {
     level: 0,
     label: "No focus time recorded",
-    className: "bg-muted/50 dark:bg-muted/40 border border-border/50",
+    className: "bg-muted",
     legend: "none",
   },
   {
     level: 1,
     label: "Under 1 hour",
-    className: "bg-emerald-500/25 dark:bg-emerald-500/30",
+    className: "bg-primary/20",
     legend: "<1h",
   },
   {
     level: 2,
     label: "1 to 2 hours",
-    className: "bg-emerald-500/50 dark:bg-emerald-500/55",
+    className: "bg-primary/40",
     legend: "1-2h",
   },
   {
     level: 3,
     label: "2 to 4 hours",
-    className: "bg-emerald-500/75 dark:bg-emerald-500/80",
+    className: "bg-primary/65",
     legend: "2-4h",
   },
   {
     level: 4,
     label: "4 hours or more",
-    className: "bg-emerald-500 dark:bg-emerald-400",
+    className: "bg-primary",
     legend: "4h+",
   },
 ];

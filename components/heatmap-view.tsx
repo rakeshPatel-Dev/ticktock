@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Grid3x3 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -152,22 +151,19 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
   } with focus time, ${formatDuration(totalSeconds)} in total.`;
 
   return (
-    <Card className="border-border/60 bg-card/50 shadow-xs rounded-4xl">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg sm:text-xl font-bold flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2.5">
-            <Grid3x3 className="h-5 w-5 text-emerald-500" />
-            Focus Heatmap
-          </span>
-          <span className="text-xs sm:text-sm font-semibold text-muted-foreground">
-            Last {weeks} weeks
-          </span>
-        </CardTitle>
-        <CardDescription>
-          {activeDays > 0
-            ? `${activeDays} ${activeDays === 1 ? "day" : "days"} with focus time · ${formatDuration(totalSeconds)} total`
-            : "Your focus history will appear here once you complete a session."}
-        </CardDescription>
+    <Card>
+      <CardHeader className="flex items-baseline justify-between gap-4">
+        <div>
+          <CardTitle>Focus heatmap</CardTitle>
+          <CardDescription>
+            {activeDays > 0
+              ? `${activeDays} ${activeDays === 1 ? "day" : "days"} with focus time · ${formatDuration(totalSeconds)} total`
+              : "Your focus history will appear here once you complete a session."}
+          </CardDescription>
+        </div>
+        <span className="shrink-0 text-[12px] text-muted-foreground">
+          Last {weeks} weeks
+        </span>
       </CardHeader>
 
       <CardContent className="space-y-3">
@@ -175,7 +171,7 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
           {/* Row labels. Fixed width so the grid does not shift on mount. */}
           <div
             aria-hidden
-            className="grid grid-rows-7 gap-1 shrink-0 pt-5 text-[10px] font-semibold text-muted-foreground/70"
+            className="grid grid-rows-7 gap-1 shrink-0 pt-5 text-[10px] font-medium text-muted-foreground/70"
           >
             {ROW_LABELS.map((label, i) => (
               <span key={i} className="h-3 leading-3 w-6">
@@ -210,7 +206,7 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
                 {monthLabels.map((label, i) => (
                   <span
                     key={i}
-                    className="text-[10px] font-semibold text-muted-foreground/80 whitespace-nowrap"
+                    className="text-[10px] font-medium text-muted-foreground/80 whitespace-nowrap"
                   >
                     {label}
                   </span>
@@ -260,7 +256,7 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
                         "relative h-3 aspect-square rounded-[3px] transition-transform hover:z-10 hover:scale-125",
                         swatch.className,
                         isToday &&
-                          "ring-2 ring-foreground/70 ring-offset-1 ring-offset-card"
+                          "ring-1 ring-foreground/60 ring-offset-1 ring-offset-background"
                       )}
                     />
                   );
@@ -273,7 +269,7 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
 
         {/* Legend. Every swatch is named with the range it stands for, so the
             shading is readable rather than decorative. */}
-        <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold text-muted-foreground/80">
+        <div className="flex items-center justify-end gap-1.5 text-[10px] font-medium text-muted-foreground/80">
           <span className="mr-1">Less</span>
           {HEATMAP_LEVELS.map((level) => (
             <span key={level.level} className="flex items-center gap-1">
