@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Trash2, Edit3, Calendar, Clock, Target, CheckCircle2, FileText, PauseCircle } from "lucide-react";
+import { Trash2, Edit3, Clock } from "lucide-react";
 import { type StudySession } from "@/db/schema";
 import {
   Dialog,
@@ -17,8 +17,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateSession, deleteSession } from "@/lib/actions";
 import { describeActionError } from "@/lib/action-errors";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
-import { getSubjectColor } from "@/lib/colors";
-import { cn } from "@/lib/utils";
 
 interface SessionDetailModalProps {
   session: StudySession | null;
@@ -116,15 +114,13 @@ export function SessionDetailModal({
     onDeleted?.();
   };
 
-  const theme = getSubjectColor(session.subject);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md rounded-4xl">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl font-bold flex items-center justify-between">
-            <span>Session Details</span>
-            <Badge variant="outline" className="text-xs font-semibold rounded-full px-3 py-1">
+          <DialogTitle className="flex items-center gap-2">
+            {session.topic || session.subject}
+            <Badge variant="outline" className="font-normal">
               {formatDateGroup(session.startedAt)}
             </Badge>
           </DialogTitle>
@@ -133,231 +129,187 @@ export function SessionDetailModal({
         {error && (
           <p
             role="alert"
-            className="p-3 text-xs rounded-2xl bg-destructive/10 text-destructive border border-destructive/25 leading-relaxed font-medium"
+            className="rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2 text-[13px] leading-relaxed font-medium text-destructive"
           >
             {error}
           </p>
         )}
 
         {isDeleting ? (
-          <div className="py-4 space-y-4 text-center">
-            <p className="text-base font-bold text-foreground">
-              Are you sure you want to delete this session?
+          <div className="space-y-4 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Delete this session?
             </p>
-            <p className="text-sm text-muted-foreground">
-              This will permanently delete the session from your history and update all analytics.
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              It will be removed from your history and from your analytics. This
+              cannot be undone.
             </p>
-            <div className="flex justify-center gap-2.5 pt-2">
+            <div className="flex justify-center gap-2 pt-1">
               <Button
-                variant="outline"
-                size="default"
+                variant="ghost"
                 onClick={() => setIsDeleting(false)}
                 disabled={isSubmitting}
-                className="rounded-full"
               >
                 Cancel
               </Button>
               <Button
                 variant="destructive"
-                size="default"
                 onClick={handleDelete}
                 disabled={isSubmitting}
-                className="rounded-full"
               >
-                {isSubmitting ? "Deleting..." : "Confirm Delete"}
+                {isSubmitting ? "Deleting…" : "Delete session"}
               </Button>
             </div>
           </div>
         ) : isEditing ? (
-          <div className="space-y-3.5 py-2 text-left">
+          <div className="space-y-3.5">
             <div className="space-y-1.5">
-              <label htmlFor={subjectFieldId} className="text-sm font-semibold text-foreground">Subject</label>
+              <label htmlFor={subjectFieldId} className="text-[13px] font-medium text-foreground">
+                Subject
+              </label>
               <Input
                 id={subjectFieldId}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="h-11 rounded-full text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor={topicFieldId} className="text-sm font-semibold text-foreground">Topic</label>
+              <label htmlFor={topicFieldId} className="text-[13px] font-medium text-foreground">
+                Topic
+              </label>
               <Input
                 id={topicFieldId}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                className="h-11 rounded-full text-sm"
               />
             </div>
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/40 border border-border/50 text-sm">
-              <span className="text-muted-foreground font-semibold flex items-center gap-2">
-                <Clock className="h-4 w-4 text-sky-500" /> Tracked Duration
+
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[13px]">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="size-3.5" />
+                Duration
               </span>
-              <span className="font-mono font-bold text-foreground">
-                {formatDuration(session.durationSeconds)} (locked)
+              <span className="font-mono tabular-nums text-foreground">
+                {formatDuration(session.durationSeconds)}
+                <span className="ml-1.5 font-sans text-muted-foreground">locked</span>
               </span>
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor={goalFieldId} className="text-sm font-semibold text-foreground">Goal</label>
+              <label htmlFor={goalFieldId} className="text-[13px] font-medium text-foreground">
+                Goal
+              </label>
               <Input
                 id={goalFieldId}
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
-                placeholder="e.g. Read 20 pages, finish chapter"
-                className="h-11 rounded-full text-sm"
+                placeholder="e.g. Finish chapter 4"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor={outcomeFieldId} className="text-sm font-semibold text-foreground">Outcome</label>
+              <label htmlFor={outcomeFieldId} className="text-[13px] font-medium text-foreground">
+                Outcome
+              </label>
               <Input
                 id={outcomeFieldId}
                 value={outcome}
                 onChange={(e) => setOutcome(e.target.value)}
-                className="h-11 rounded-full text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor={notesFieldId} className="text-sm font-semibold text-foreground">Notes</label>
+              <label htmlFor={notesFieldId} className="text-[13px] font-medium text-foreground">
+                Notes
+              </label>
               <Textarea
                 id={notesFieldId}
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="rounded-3xl text-sm"
               />
             </div>
-            <div className="flex justify-end gap-2.5 pt-2">
+
+            <div className="flex justify-end gap-2 pt-1">
               <Button
-                variant="outline"
-                size="default"
+                variant="ghost"
                 onClick={() => setIsEditing(false)}
                 disabled={isSubmitting}
-                className="rounded-full"
               >
                 Cancel
               </Button>
-              <Button
-                size="default"
-                variant="sky"
-                onClick={handleUpdate}
-                disabled={isSubmitting}
-                className="rounded-full px-6"
-              >
-                {isSubmitting ? "Saving..." : "Save changes"}
+              <Button variant="default" onClick={handleUpdate} disabled={isSubmitting}>
+                {isSubmitting ? "Saving…" : "Save changes"}
               </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-4 py-2 text-left">
-            {/* Subject and Topic header */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold border shadow-2xs",
-                    theme.badge
-                  )}
-                >
-                  {session.subject}
-                </span>
-              </div>
-              {session.topic && (
-                <p className="text-lg font-bold text-foreground">
-                  {session.topic}
-                </p>
-              )}
-            </div>
+          <>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">
+              {[
+                { label: "Focused", value: formatDuration(session.durationSeconds) },
+                { label: "Paused", value: formatDuration(session.pausedSeconds) },
+              ].map((item) => (
+                <div key={item.label} className="bg-card px-4 py-3">
+                  <dt className="type-label">{item.label}</dt>
+                  <dd className="type-metric mt-1 text-[19px]">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
 
-            {/* Metrics pills */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-3xl border border-border/60 bg-muted/30 p-3.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-sky-500" /> Focused Duration
-                </span>
-                <p className="text-2xl font-black text-foreground mt-1">
-                  {formatDuration(session.durationSeconds)}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-border/60 bg-muted/30 p-3.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <PauseCircle className="h-3.5 w-3.5 text-amber-500" /> Paused Time
-                </span>
-                <p className="text-2xl font-black text-foreground mt-1">
-                  {formatDuration(session.pausedSeconds)}
-                </p>
-              </div>
-            </div>
-
-            {/* Time meta */}
-            <div className="flex items-center gap-3 text-xs sm:text-sm text-muted-foreground border-y border-border/40 py-2.5 font-medium">
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5" />
-                {formatDateGroup(session.startedAt)}
-              </span>
-              <span>•</span>
-              <span>Started at {formatTime(session.startedAt)}</span>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+              <span>Started {formatTime(session.startedAt)}</span>
               {session.endedAt && (
                 <>
-                  <span>•</span>
-                  <span>Ended at {formatTime(session.endedAt)}</span>
+                  <span aria-hidden>·</span>
+                  <span>Ended {formatTime(session.endedAt)}</span>
                 </>
               )}
-            </div>
+            </p>
 
-            {/* Goal, Outcome, Notes */}
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3.5 text-sm">
               {session.goal && (
-                <div className="space-y-0.5">
-                  <span className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Target className="h-3.5 w-3.5 text-orange-500" /> Goal
-                  </span>
-                  <p className="text-foreground font-medium text-sm sm:text-base">{session.goal}</p>
+                <div className="space-y-1">
+                  <span className="type-label">Goal</span>
+                  <p className="text-foreground">{session.goal}</p>
                 </div>
               )}
 
               {session.outcome && (
-                <div className="space-y-0.5">
-                  <span className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Outcome
-                  </span>
-                  <p className="text-foreground font-medium text-sm sm:text-base">{session.outcome}</p>
+                <div className="space-y-1">
+                  <span className="type-label">Outcome</span>
+                  <p className="text-foreground">{session.outcome}</p>
                 </div>
               )}
 
               {session.notes && (
-                <div className="space-y-0.5">
-                  <span className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5 text-rose-500" /> Notes
-                  </span>
-                  <p className="text-foreground whitespace-pre-wrap leading-relaxed text-sm sm:text-base">
+                <div className="space-y-1">
+                  <span className="type-label">Notes</span>
+                  <p className="whitespace-pre-wrap leading-relaxed text-foreground">
                     {session.notes}
                   </p>
                 </div>
               )}
             </div>
 
-            <DialogFooter className="flex items-center justify-between pt-3 sm:justify-between border-t border-border/40">
+            <DialogFooter className="sm:justify-between">
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
+                className="text-muted-foreground hover:bg-destructive/8 hover:text-destructive"
                 onClick={() => setIsDeleting(true)}
               >
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                <Trash2 className="size-3.5" />
                 Delete
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full px-4"
                 onClick={() => setIsEditing(true)}
               >
-                <Edit3 className="h-3.5 w-3.5 mr-1.5" />
+                <Edit3 className="size-3.5" />
                 Edit
               </Button>
             </DialogFooter>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>

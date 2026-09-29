@@ -11,11 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { formatDuration, formatTime, formatDateGroup } from "@/lib/timer";
-import { getSubjectColor } from "@/lib/colors";
 import { isSameSubject } from "@/lib/subjects";
-import { cn } from "@/lib/utils";
 import { SessionDetailModal } from "./session-detail-modal";
 
 interface SessionListProps {
@@ -97,26 +94,24 @@ export function SessionListView({
   const groupKeys = Object.keys(groupedSessions);
 
   return (
-    <div className="space-y-6">
-      {/* Controls: Search & Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by subject, topic, or notes..."
+            placeholder="Search subjects, topics, notes…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-card/60 h-11 rounded-full text-sm"
+            className="pl-9"
           />
         </div>
 
-        <div className="flex w-full sm:w-auto items-center gap-2">
-          {/* Subject Filter */}
+        <div className="flex items-center gap-2">
           <Select
             value={selectedSubject}
             onValueChange={(val) => setSelectedSubject(val || "all")}
           >
-            <SelectTrigger className="flex-1 sm:flex-none sm:w-[160px] bg-card/60 h-11 rounded-full text-sm">
+            <SelectTrigger className="flex-1 sm:w-44">
               <SelectValue placeholder="All subjects" />
             </SelectTrigger>
             <SelectContent>
@@ -129,12 +124,11 @@ export function SessionListView({
             </SelectContent>
           </Select>
 
-          {/* Date Filter */}
           <Select
             value={dateRange}
             onValueChange={(val) => setDateRange(val || "all")}
           >
-            <SelectTrigger className="flex-1 sm:flex-none sm:w-[125px] bg-card/60 h-11 rounded-full text-sm">
+            <SelectTrigger className="flex-1 sm:w-36">
               <SelectValue placeholder="All time" />
             </SelectTrigger>
             <SelectContent>
@@ -146,99 +140,63 @@ export function SessionListView({
         </div>
       </div>
 
-      {/* Session History List Grouped by Date */}
       {groupKeys.length === 0 ? (
-        <div className="rounded-4xl border border-dashed border-border/70 p-12 text-center space-y-2.5 bg-card/20">
-          <div className="h-12 w-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-500">
-            <Inbox className="h-6 w-6" />
-          </div>
-          <p className="text-lg font-bold text-foreground">
-            No sessions found
-          </p>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+        <div className="rounded-4xl border border-border bg-card px-6 py-16 text-center [box-shadow:var(--shadow-card)]">
+          <Inbox className="mx-auto size-5 text-muted-foreground/60" />
+          <p className="mt-3 text-sm font-medium text-foreground">No sessions found</p>
+          <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">
             {initialSessions.length === 0
-              ? "Your session history is clear right now. Start your first session on the dashboard to build your log!"
-              : "Try adjusting your search query or filters to find what you're looking for."}
+              ? "Your history is empty. Start a session from the dashboard."
+              : "Try a different search term or filter."}
           </p>
         </div>
       ) : (
         <div className="space-y-6">
           {groupKeys.map((groupLabel) => (
-            <div key={groupLabel} className="space-y-2">
-              <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground pl-2">
-                {groupLabel}
-              </h4>
+            <section key={groupLabel}>
+              <h4 className="type-label mb-2">{groupLabel}</h4>
 
-              <div className="divide-y divide-border/40 rounded-4xl border border-border/50 bg-card overflow-hidden [box-shadow:var(--shadow-card)]">
-                {groupedSessions[groupLabel].map((session) => {
-                  const theme = getSubjectColor(session.subject);
-                  return (
+              <ul className="divide-y divide-border/70 overflow-hidden rounded-4xl border border-border bg-card [box-shadow:var(--shadow-card)]">
+                {groupedSessions[groupLabel].map((session) => (
+                  <li key={session.id}>
                     <button
-                      key={session.id}
                       type="button"
                       onClick={() => setActiveDetailSession(session)}
-                      className="w-full text-left p-4 sm:px-6 flex items-center justify-between hover:bg-accent/40 transition-all group border-l-2 border-transparent hover:border-sky-400/60"
+                      className="group flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left transition-colors hover:bg-accent/50"
                     >
-                      <div className="space-y-1.5 min-w-0 pr-3">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className={cn(
-                              "px-3 py-0.5 rounded-full text-xs font-bold border shadow-2xs",
-                              theme.badge
-                            )}
-                          >
-                            {session.subject}
-                          </span>
-                          {session.topic && (
-                            <>
-                              <span className="text-muted-foreground/50 text-xs">·</span>
-                              <span className="text-sm sm:text-base font-semibold text-foreground truncate">
-                                {session.topic}
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-muted-foreground font-medium">
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="h-3.5 w-3.5" />
+                      <div className="min-w-0">
+                        <p className="truncate text-[15px] font-medium tracking-[-0.01em] text-foreground">
+                          {session.topic || session.subject}
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
+                          {session.topic && <span className="truncate">{session.subject}</span>}
+                          <span className="flex items-center gap-1">
+                            <Clock className="size-3" />
                             {formatTime(session.startedAt)}
                           </span>
                           {session.outcome && (
-                            <>
-                              <span>•</span>
-                              <span className="px-2.5 py-0.5 rounded-full bg-muted text-foreground text-xs font-semibold border border-border/60">
-                                {session.outcome}
-                              </span>
-                            </>
+                            <span className="truncate text-muted-foreground/80">
+                              {session.outcome}
+                            </span>
                           )}
-                          {session.notes && (
-                            <>
-                              <span>•</span>
-                              <span className="truncate max-w-[260px] text-muted-foreground/85 italic font-normal">
-                                &ldquo;{session.notes}&rdquo;
-                              </span>
-                            </>
-                          )}
-                        </div>
+                        </p>
                       </div>
 
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <Badge variant="secondary" className="font-mono text-sm font-bold rounded-full px-3.5 py-1">
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="font-mono text-[13px] font-medium tabular-nums text-secondary-foreground">
                           {formatDuration(session.durationSeconds)}
-                        </Badge>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
+                        </span>
+                        <ChevronRight className="size-4 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
                       </div>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
       )}
 
-      {/* Session Details Modal */}
       <SessionDetailModal
         session={activeDetailSession}
         open={!!activeDetailSession}
