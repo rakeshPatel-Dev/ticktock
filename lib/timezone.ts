@@ -244,6 +244,58 @@ function zonedMidnightUtcMs(dateKey: string, timeZone: string): number {
   return zonedTimeToUtcMs(year, month, day, timeZone);
 }
 
+export interface HeatmapRange extends DayRange {
+  /**
+   * Week columns, oldest first. Each is seven `YYYY-MM-DD` keys, Monday first.
+   *
+   * Returned as a grid rather than a flat list of days because the cell order IS
+   * the layout: column-major would need a transpose, and rows-first would draw
+   * the calendar upside down relative to the `dayLabels` above it.
+   */
+  columns: string[][];
+  /** The user's current `YYYY-MM-DD`. Cells after it have not happened yet. */
+  today: string;
+}
+
+/**
+ * The Monday-aligned window a calendar heatmap draws, in `timeZone`.
+ *
+ * Aligned to Mondays for the same reason `getWeekRange` is: a heatmap column is
+ * a week, so the leftmost column has to be a whole Mon–Sun or every row after
+ * the first is offset by a different number of days and the grid shears.
+ *
+ * `to` is the end of *today*, not the end of the current week. The trailing days
+ * of this week are rendered as future and carry no data, so leaving them in the
+ * range only invites a forward-dated session (client clock ahead of the server's
+ * `MAX_START_SKEW_SECONDS` window) to land in a cell the UI deliberately paints
+ * blank — data dropped for a reason that has nothing to do with the range.
+ *
+ * `weeks` is required rather than defaulted to keep this module free of app
+ * constants; `lib/heatmap.ts` owns the value.
+ */
+export function getHeatmapRange(
+  reference: Date,
+  timeZone: string,
+  weeks: number
+): HeatmapRange {
+  const { date } = getWallClock(reference, timeZone);
+
+  // Same Monday-first walk as `getWeekRange`, then step back whole weeks so the
+  // oldest column is a Monday too.
+  const daysSinceMonday = (wallCalendarDate(date).getUTCDay() + 6) % 7;
+  const thisMonday = shiftDateKey(date, -daysSinceMonday);
+  const firstMonday = shiftDateKey(thisMonday, -7 * (weeks - 1));
+
+  return {
+    from: Math.floor(zonedMidnightUtcMs(firstMonday, timeZone) / 1000),
+    to: getDayRange(reference, timeZone).to,
+    today: date,
+    columns: Array.from({ length: weeks }, (_, w) =>
+      Array.from({ length: 7 }, (_, d) => shiftDateKey(firstMonday, w * 7 + d))
+    ),
+  };
+}
+
 /**
  * `$dateToString` options that format `startedAt` in the user's zone.
  *
