@@ -2,46 +2,42 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
+/**
+ * Six variants, one accent.
+ *
+ * The previous set had `sky`, `orange`, `pink`, `red`, `amber`, `emerald` and
+ * `rose` — each with its own coloured glow — which meant a page of controls
+ * competed with itself for attention. Emphasis is now a single filled button in
+ * the accent; everything else steps down through outline to ghost. A screen
+ * that needs six different buttons calling themselves out is a screen where
+ * none of them do.
+ */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-150 outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95 active:brightness-95 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[background-color,color,border-color,box-shadow,transform,opacity] duration-100 outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[0.97] active:opacity-90 disabled:pointer-events-none disabled:opacity-40 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 [box-shadow:var(--shadow-btn)] hover:[box-shadow:var(--shadow-btn-hover)]",
-        sky:
-          "bg-sky-500 hover:bg-sky-600 text-white font-bold [box-shadow:0_2px_8px_theme(colors.sky.500/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.sky.500/45%),var(--shadow-btn-hover)]",
-        orange:
-          "bg-orange-500 hover:bg-orange-600 text-white font-bold [box-shadow:0_2px_8px_theme(colors.orange.500/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.orange.500/45%),var(--shadow-btn-hover)]",
-        pink:
-          "bg-pink-500 hover:bg-pink-600 text-white font-bold [box-shadow:0_2px_8px_theme(colors.pink.500/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.pink.500/45%),var(--shadow-btn-hover)]",
-        red:
-          "bg-red-500 hover:bg-red-600 text-white font-bold [box-shadow:0_2px_8px_theme(colors.red.500/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.red.500/45%),var(--shadow-btn-hover)]",
-        amber:
-          "bg-amber-500 hover:bg-amber-600 text-white font-bold [box-shadow:0_2px_8px_theme(colors.amber.500/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.amber.500/45%),var(--shadow-btn-hover)]",
-        emerald:
-          "bg-emerald-500 hover:bg-emerald-600 text-white font-bold [box-shadow:0_2px_8px_theme(colors.emerald.500/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.emerald.500/45%),var(--shadow-btn-hover)]",
-        rose:
-          "bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-500/30 font-bold [box-shadow:0_1px_4px_theme(colors.rose.500/15%)] hover:[box-shadow:0_2px_8px_theme(colors.rose.500/25%)]",
-        outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 [box-shadow:var(--shadow-btn)] hover:[box-shadow:var(--shadow-btn-hover)]",
+          "bg-gradient-to-b from-primary via-primary to-[color-mix(in_oklch,var(--primary)_86%,black)] text-primary-foreground font-semibold shadow-[0_4px_16px_-2px_color-mix(in_oklch,var(--primary)_50%,transparent),0_1px_2px_color-mix(in_oklch,var(--primary)_30%,transparent),inset_0_1px_0_rgba(255,255,255,0.30)] hover:brightness-105 hover:shadow-[0_6px_22px_-2px_color-mix(in_oklch,var(--primary)_65%,transparent),0_2px_4px_color-mix(in_oklch,var(--primary)_35%,transparent)] active:scale-[0.96] active:brightness-95 active:shadow-[0_2px_8px_-1px_color-mix(in_oklch,var(--primary)_50%,transparent),inset_0_2px_4px_rgba(0,0,0,0.20)] dark:shadow-[0_4px_22px_-2px_color-mix(in_oklch,var(--primary)_60%,transparent),inset_0_1px_0_rgba(255,255,255,0.22)] dark:hover:shadow-[0_6px_28px_-2px_color-mix(in_oklch,var(--primary)_75%,transparent)]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground [box-shadow:var(--shadow-btn)]",
+          "bg-primary/10 text-primary border border-primary/20 shadow-xs hover:bg-primary/18 hover:border-primary/30 hover:shadow-[0_2px_12px_color-mix(in_oklch,var(--primary)_25%,transparent)] dark:bg-primary/15 dark:border-primary/25 dark:hover:bg-primary/25",
+        outline:
+          "border-border/80 bg-card/70 backdrop-blur-md shadow-[0_1px_2px_oklch(0_0_0/0.05)] hover:border-primary/40 hover:bg-primary/8 hover:text-primary hover:shadow-[0_2px_12px_color-mix(in_oklch,var(--primary)_18%,transparent)] dark:bg-card/40 dark:hover:border-primary/50 dark:hover:bg-primary/15",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "hover:bg-primary/10 hover:text-primary active:bg-primary/15",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 [box-shadow:0_2px_8px_theme(colors.red.600/35%),var(--shadow-btn)] hover:[box-shadow:0_4px_16px_theme(colors.red.600/45%),var(--shadow-btn-hover)]",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-gradient-to-b from-destructive to-[color-mix(in_oklch,var(--destructive)_86%,black)] text-white font-semibold shadow-[0_4px_16px_-2px_color-mix(in_oklch,var(--destructive)_45%,transparent),inset_0_1px_0_rgba(255,255,255,0.25)] hover:brightness-105 hover:shadow-[0_6px_20px_-2px_color-mix(in_oklch,var(--destructive)_60%,transparent)] active:scale-[0.96]",
+        link: "text-primary underline-offset-4 hover:underline hover:brightness-110",
       },
       size: {
-        default: "h-9.5 gap-2 px-4.5 rounded-full text-sm font-semibold",
-        xs: "h-6 gap-1 rounded-full px-2.5 text-xs",
-        sm: "h-8 gap-1.5 rounded-full px-3 text-xs font-medium",
-        lg: "h-12 gap-2.5 px-6.5 text-base font-bold rounded-full hover:-translate-y-0.5",
-        icon: "size-9 rounded-full",
-        "icon-xs": "size-6 rounded-full [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-7.5 rounded-full",
-        "icon-lg": "size-10 rounded-full",
+        default: "h-10 gap-2 px-5",
+        xs: "h-6 gap-1 px-2.5 text-xs",
+        sm: "h-8 gap-1.5 px-3.5 text-[13px]",
+        lg: "h-[50px] gap-2 px-7 text-[15px]",
+        icon: "size-10",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-8",
+        "icon-lg": "size-11",
       },
     },
     defaultVariants: {

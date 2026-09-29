@@ -28,12 +28,12 @@ export const PasswordInput = React.forwardRef<
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
         onClick={() => setVisible((v) => !v)}
-        className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {visible ? (
-          <EyeOff className="size-5" aria-hidden />
+          <EyeOff className="size-4" aria-hidden />
         ) : (
-          <Eye className="size-5" aria-hidden />
+          <Eye className="size-4" aria-hidden />
         )}
       </button>
     </div>
@@ -41,7 +41,7 @@ export const PasswordInput = React.forwardRef<
 });
 
 function cnPassword(className?: string) {
-  return cnCompat(className, "pr-11");
+  return cnCompat(className, "pr-10");
 }
 
 // Tiny local cn: src's full cn is overkill for concatenating two strings; keeps
