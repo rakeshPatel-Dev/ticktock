@@ -24,11 +24,15 @@ import {
 } from "@/components/ui/dialog";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Timer },
+  { href: "/", label: "Focus", icon: Timer },
   { href: "/sessions", label: "Sessions", icon: History },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+function isNavItemActive(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -63,119 +67,127 @@ export function Navbar() {
   if (isAuthRoute) return null;
 
   return (
-    <header className="sticky top-3 z-40 w-full px-4 mb-2">
-      <div className="container mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 rounded-full border border-border/60 bg-background/85 backdrop-blur-xl [box-shadow:0_4px_16px_oklch(0_0_0_/_0.08),0_1px_4px_oklch(0_0_0_/_0.06),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
-        {/* Brand */}
-        <div className="flex items-center gap-4 sm:gap-6">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-bold tracking-tight text-foreground group transition-transform active:scale-95"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden shadow-md shadow-sky-500/40 group-hover:rotate-12 transition-transform">
-              <Image src="/icon1.png" alt="TickTock" width={32} height={32} />
-            </div>
-            <span className="text-base font-extrabold tracking-tight text-foreground">
-              TickTock
-            </span>
-          </Link>
-
-          {/* Desktop Nav */}
-          <nav className="hidden sm:flex items-center gap-1.5">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all active:scale-95",
-                    isActive
-                      ? "bg-foreground text-background shadow-xs font-bold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Right side: Shortcut help & Theme toggle */}
-        <div className="flex items-center gap-2">
-          {/* Shortcuts Dialog */}
-          <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
-            <DialogTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="hidden sm:inline-flex rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
-                  title="Keyboard shortcuts (?)"
-                >
-                  <HelpCircle className="h-4 w-4" />
-                  <span className="sr-only">Keyboard shortcuts</span>
-                </Button>
-              }
-            />
-            <DialogContent className="sm:max-w-md rounded-4xl">
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                  <div className="p-1 rounded-full bg-amber-500/10 text-amber-500">
-                    <HelpCircle className="h-4 w-4" />
-                  </div>
-                  Keyboard Shortcuts
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3 text-sm pt-2">
-                {SHORTCUTS.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                    <span className="text-muted-foreground font-medium">{s.action}</span>
-                    <kbd className="rounded-full bg-muted px-3 py-1 text-xs font-mono font-bold border border-border shadow-2xs">
-                      {s.label}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <ThemeToggle />
-        </div>
-      </div>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40 flex rounded-full border border-border/70 bg-background/90 backdrop-blur-xl px-3 py-1.5 justify-around shadow-xl">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-
-          return (
+    <>
+      {/*
+        A bar, not a floating pill. The previous header was a 56px rounded
+        capsule floating 12px off the top of the page, which pushed content down
+        and read as a widget. This one is flush, full-width, and separated from
+        the page by a single hairline — the separation is enough.
+      */}
+      <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-[52px] w-full max-w-5xl items-center justify-between px-5 sm:px-6">
+          <div className="flex items-center gap-6">
             <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center gap-0.5 py-1 px-3 text-[11px] font-semibold rounded-full transition-all active:scale-95",
-                isActive
-                  ? "bg-foreground text-background shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              href="/"
+              className="flex items-center gap-2 transition-opacity hover:opacity-70"
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
+              <Image src="/icon1.png" alt="" width={26} height={26} className="size-6 rounded-[6px]" />
+              <span className="text-[15px] font-bold tracking-[-0.01em] text-foreground">
+                TickTock
+              </span>
             </Link>
-          );
-        })}
-      </div>
-    </header>
+
+            {/* Segmented navigation. The active item is a neutral fill, not an
+                inverted one — inverting made a tab look like a button that was
+                pressed, which competes with the real primary action on the page. */}
+            <nav className="hidden items-center gap-1 rounded-full bg-muted/70 p-1 border border-border/60 shadow-inner backdrop-blur-xl sm:flex">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = isNavItemActive(pathname, item.href);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-primary text-primary-foreground font-semibold shadow-[0_2px_12px_-2px_color-mix(in_oklch,var(--primary)_55%,transparent),inset_0_1px_0_rgba(255,255,255,0.25)]"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
+              <DialogTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    title="Keyboard shortcuts (?)"
+                  >
+                    <HelpCircle className="size-4" />
+                    <span className="sr-only">Keyboard shortcuts</span>
+                  </Button>
+                }
+              />
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Keyboard Shortcuts</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-0.5 pt-1">
+                  {SHORTCUTS.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between border-b border-border/70 py-2.5 last:border-0"
+                    >
+                      <span className="text-[13px] text-secondary-foreground">{s.action}</span>
+                      <kbd className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-foreground">
+                        {s.label}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      {/*
+        Mobile tab bar. A hairline top border and a backdrop, with the active
+        item carrying the accent colour — the iOS convention, and the reason it
+        needs no floating capsule to read as a bar.
+      */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/50 bg-background/90 backdrop-blur-2xl sm:hidden">
+        <div className="flex items-stretch justify-around pb-[env(safe-area-inset-bottom)]">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = isNavItemActive(pathname, item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex flex-1 flex-col items-center justify-center gap-[3px] pt-2 pb-1 text-[10px] font-medium transition-all duration-150",
+                  isActive ? "text-primary font-bold" : "text-muted-foreground/70 hover:text-foreground"
+                )}
+              >
+                <span className={cn(
+                  "flex size-[44px] items-center justify-center rounded-full transition-all duration-200",
+                  isActive ? "bg-primary/15 text-primary border border-primary/25 shadow-[0_0_16px_color-mix(in_oklch,var(--primary)_40%,transparent)]" : ""
+                )}>
+                  <Icon className={cn("transition-all duration-200", isActive ? "size-[22px] drop-shadow-[0_0_8px_color-mix(in_oklch,var(--primary)_70%,transparent)]" : "size-[20px]")} />
+                </span>
+                <span className={isActive ? "font-bold text-primary" : ""}>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }

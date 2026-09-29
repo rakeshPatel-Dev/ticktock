@@ -1,24 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { Navbar } from "@/components/navbar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "TickTock - Focused Time Tracking",
-  description: "A calm, minimal coding and study session tracker.",
+  description: "Focused time tracking for serious learners.",
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -41,9 +37,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-muted selection:text-foreground">
+      <body className="flex min-h-full flex-col bg-background font-sans text-foreground">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -53,7 +49,8 @@ export default function RootLayout({
           <TooltipProvider>
             <TimezoneSync />
             <Navbar />
-            <main className="flex-1 container mx-auto max-w-5xl px-4 pt-6 pb-24 sm:pb-6">
+            {/* Bottom padding clears the mobile tab bar, which is fixed. */}
+            <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-32 sm:px-6 sm:pt-8 sm:pb-16">
               {children}
             </main>
           </TooltipProvider>
