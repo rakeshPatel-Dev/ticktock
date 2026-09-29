@@ -16,6 +16,10 @@ import { cn } from "@/lib/utils";
  * are known at build time and are rendered for real, immediately, in the static
  * shell — so this file only ever covers the numbers, the bars and the rows.
  *
+ * What they do have to match is the *shape* of what replaces them: same grid,
+ * same row heights, same column count. A skeleton that is a different size from
+ * its replacement is a layout shift, which is a worse jank than a placeholder.
+ *
  * Server Components on purpose: static markup, so none of it ships in the client
  * bundle. Each fallback is part of its route's static shell, arrives on the
  * first flush, and is already on screen when the real content streams over it.
@@ -32,52 +36,20 @@ function Skeleton({
     <div
       aria-hidden
       style={style}
-      className={cn("animate-pulse rounded-full bg-muted", className)}
+      className={cn("animate-pulse rounded-md bg-muted", className)}
     />
   );
 }
 
-/**
- * A value about to be replaced by text of roughly this size.
- *
- * `lines` stacks several, for a list of values. The width is deliberately not
- * fixed: these are labels' worth of content, and a placeholder that is a
- * different width from its replacement is what causes the jump.
- */
-export function ValueSkeleton({
-  className,
-  lines = 1,
-  width = "w-24",
-}: {
-  className?: string;
-  lines?: number;
-  width?: string;
-}) {
-  return (
-    <div
-      role="status"
-      aria-label="Loading"
-      className={cn("flex flex-col gap-2", className)}
-    >
-      {Array.from({ length: lines }, (_, i) => (
-        <Skeleton
-          key={i}
-          className={cn("h-8 sm:h-9 !rounded-lg", width, i > 0 && "!h-6 sm:!h-7")}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** The dashboard's Timer region: the clock, or the idle card's focal point. */
+/** The dashboard's Timer region: the clock, or the idle hero's focal point. */
 export function TimerSkeleton() {
   return (
     <div className="w-full" role="status" aria-label="Loading timer">
-      <div className="rounded-4xl border border-border/50 bg-card p-6 sm:p-10 lg:p-14 text-center [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
-        <div className="relative space-y-6 max-w-xl mx-auto">
-          <Skeleton className="mx-auto mb-1 h-28 w-28 sm:h-40 sm:w-40 !rounded-3xl" />
-          <Skeleton className="mx-auto h-9 sm:h-12 w-3/4 max-w-sm" />
-          <Skeleton className="mx-auto h-11 w-40 !rounded-full" />
+      <div className="rounded-4xl border border-border bg-card px-6 py-10 text-center [box-shadow:var(--shadow-raised)] sm:px-10 sm:py-14">
+        <div className="@container relative mx-auto w-full max-w-xl">
+          <Skeleton className="mx-auto h-16 w-[min(80%,22rem)] sm:h-24" />
+          <Skeleton className="mx-auto mt-8 h-4 w-40" />
+          <Skeleton className="mx-auto mt-6 h-11 w-36" />
         </div>
       </div>
     </div>
@@ -85,7 +57,7 @@ export function TimerSkeleton() {
 }
 
 /**
- * A stat tile: the label is static, the number is not.
+ * A stat figure. The label is static, the number is not.
  *
  * The label is repeated here as real text rather than covered by a block,
  * because the tile reads as a labelled figure and a grey bar where "FOCUSED"
@@ -93,93 +65,148 @@ export function TimerSkeleton() {
  * bounded — four short strings — and it goes stale for the ~200ms the real
  * value takes to arrive, which is cheaper than a page of placeholders.
  */
-function StatTileSkeleton({ label, width }: { label: string; width: string }) {
+function StatFigureSkeleton({ label, width }: { label: string; width: string }) {
   return (
-    <div className="rounded-4xl border border-border/40 bg-card p-5 sm:p-6 [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.55)]">
-      <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
+    <div className="min-w-0">
+      <span className="type-label">{label}</span>
       <div className="mt-2">
-        <Skeleton className={cn("h-9 sm:h-10 !rounded-lg", width)} />
+        <Skeleton className={cn("h-6 w-20", width)} />
       </div>
     </div>
   );
 }
 
 /**
- * Today's numbers: the day's total, the four tiles, and the recent rows.
+ * The four-figure strip, in the same grid and with the same hairlines as the
+ * real thing. Two-up on phones, four-up from `sm`.
+ */
+function StatsStripSkeleton({ labels }: { labels: [string, string, string, string] }) {
+  return (
+    <div className="grid grid-cols-2 gap-y-5 sm:grid-cols-4 sm:gap-y-0">
+      {labels.map((label, i) => (
+        <div
+          key={label}
+          className={cn(
+            "min-w-0",
+            i % 2 === 1 && "border-l border-border pl-5",
+            i > 0 && "sm:border-l sm:border-border sm:pl-5"
+          )}
+        >
+          <StatFigureSkeleton label={label} width="w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A rounded surface the size of a real card, for regions with rows in them. */
+function CardSkeleton({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-4xl border border-border bg-card p-5 [box-shadow:var(--shadow-card)]", className)}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Today's numbers: the day's total, the four figures, and the recent rows.
  *
- * The tile labels above are rendered for real. Only the figures they sit above,
- * the goal total and the session rows are placeholders.
+ * The labels above the figures are rendered for real. Only the figures they sit
+ * above, the goal total and the session rows are placeholders.
  */
 export function SummarySkeleton() {
   return (
-    <div className="space-y-8 w-full" role="status" aria-label="Loading today">
-      <div className="rounded-4xl border border-border/40 bg-card p-5 sm:p-6 [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.55)]">
-        <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">
-          Today&apos;s Goal
-        </span>
-        <div className="mt-2 flex flex-row items-center justify-between gap-4">
-          <Skeleton className="h-9 sm:h-10 w-48 !rounded-lg" />
-          <Skeleton className="h-6 w-12" />
-        </div>
-        <div className="mt-4 space-y-2.5">
-          <Skeleton className="h-2.5 w-full" />
-          <Skeleton className="h-4 w-2/3" />
-        </div>
+    <div className="space-y-4 w-full" role="status" aria-label="Loading today">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <CardSkeleton>
+          <span className="type-label">Today&apos;s goal</span>
+          <div className="mt-2.5">
+            <Skeleton className="h-8 w-32" />
+          </div>
+          <div className="mt-5 space-y-2.5">
+            <Skeleton className="h-1.5 w-full" />
+            <Skeleton className="h-3.5 w-2/3" />
+          </div>
+        </CardSkeleton>
+
+        <CardSkeleton className="sm:w-[22rem]">
+          <StatsStripSkeleton labels={["Focused", "Sessions", "Subjects", "Longest"]} />
+        </CardSkeleton>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <StatTileSkeleton label="Focused" width="w-24" />
-        <StatTileSkeleton label="Sessions" width="w-16" />
-        <StatTileSkeleton label="Subjects" width="w-16" />
-        <StatTileSkeleton label="Longest" width="w-20" />
-      </div>
-
-      <div className="space-y-3.5">
-        <ValueSkeleton className="px-1" width="w-full" lines={3} />
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-32" />
+          <div className="divide-y divide-border/70 overflow-hidden rounded-4xl border border-border bg-card [box-shadow:var(--shadow-card)]">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="flex items-center justify-between px-5 py-3.5">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="h-3.5 w-12" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-/** The analytics tiles, the week chart's bars, and the two panels' rows. */
+/** The analytics strip, the week chart's bars, and the two panels' rows. */
 export function AnalyticsSkeleton() {
   return (
-    <div className="space-y-8 pb-12" role="status" aria-label="Loading analytics">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <StatTileSkeleton label="This Week" width="w-24" />
-        <StatTileSkeleton label="Sessions" width="w-16" />
-        <StatTileSkeleton label="Average" width="w-20" />
-        <StatTileSkeleton label="Longest Day" width="w-20" />
-      </div>
+    <div className="space-y-4" role="status" aria-label="Loading analytics">
+      <CardSkeleton>
+        <StatsStripSkeleton
+          labels={["This week", "Sessions", "Avg session", "Longest day"]}
+        />
+      </CardSkeleton>
 
-      <div className="rounded-4xl border border-border/60 bg-card/50 p-5 sm:p-6">
-        <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44">
+      <CardSkeleton>
+        <Skeleton className="h-4 w-32" />
+        <div className="mt-6 flex h-44 items-end gap-2 sm:gap-4">
           {Array.from({ length: 7 }, (_, i) => (
             <Skeleton
               key={i}
-              className="w-full !rounded-t-lg !rounded-b-none"
+              className="flex-1 rounded-t-md"
               // Staggered so the fallback reads as a bar chart, not a picket fence.
               style={{ height: `${[45, 70, 30, 85, 55, 40, 25][i]}%` }}
             />
           ))}
         </div>
-      </div>
+      </CardSkeleton>
 
-      <div className="grid gap-3.5 sm:grid-cols-2">
+      <CardSkeleton>
+        <Skeleton className="h-4 w-36" />
+        <div className="mt-6 grid grid-flow-col grid-rows-7 gap-1">
+          {Array.from({ length: 49 }, (_, i) => (
+            <Skeleton key={i} className="aspect-square h-3" />
+          ))}
+        </div>
+      </CardSkeleton>
+
+      <div className="grid gap-4 md:grid-cols-2">
         {Array.from({ length: 2 }, (_, p) => (
-          <div
-            key={p}
-            className="rounded-4xl border border-border/60 bg-card/40 p-5 sm:p-6 space-y-3"
-          >
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <Skeleton className="h-4 flex-1" />
-                <Skeleton className="h-4 w-14" />
-              </div>
-            ))}
-          </div>
+          <CardSkeleton key={p}>
+            <Skeleton className="h-4 w-28" />
+            <div className="mt-5 space-y-4">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3.5 w-14" />
+                  </div>
+                  <Skeleton className="h-1 w-full" />
+                </div>
+              ))}
+            </div>
+          </CardSkeleton>
         ))}
       </div>
     </div>
@@ -197,25 +224,43 @@ export function AnalyticsSkeleton() {
 export function SessionsSkeleton() {
   return (
     <div className="space-y-6" role="status" aria-label="Loading sessions">
-      <div className="space-y-2">
-        <ValueSkeleton width="w-full" lines={4} />
-      </div>
+      {Array.from({ length: 2 }, (_, g) => (
+        <div key={g} className="space-y-2">
+          <Skeleton className="h-3 w-24" />
+        <div className="divide-y divide-border/70 overflow-hidden rounded-4xl border border-border bg-card [box-shadow:var(--shadow-card)]">
+            {Array.from({ length: g === 0 ? 3 : 2 }, (_, i) => (
+              <div key={i} className="flex items-center justify-between px-5 py-3.5">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-44" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+                <Skeleton className="h-3.5 w-12" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/** Settings: the daily-goal value and the account field are the dynamic parts. */
+/** Settings: the account field, the goal value, and the export buttons. */
 export function SettingsSkeleton() {
   return (
-    <div className="space-y-6" role="status" aria-label="Loading settings">
-      {Array.from({ length: 2 }, (_, i) => (
-        <div
-          key={i}
-          className="rounded-4xl border border-border/60 bg-card/40 p-5 sm:p-6 space-y-3"
-        >
-          <ValueSkeleton width={i === 0 ? "w-40" : "w-56"} />
-          <Skeleton className="h-4 w-2/3" />
-        </div>
+    <div className="space-y-4" role="status" aria-label="Loading settings">
+      {Array.from({ length: 3 }, (_, i) => (
+        <CardSkeleton key={i}>
+          <Skeleton className="h-4 w-28" />
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center justify-between gap-6">
+              <div className="space-y-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+              <Skeleton className="h-9 w-20" />
+            </div>
+          </div>
+        </CardSkeleton>
       ))}
     </div>
   );

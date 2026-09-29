@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { Play, Pause, Square, Maximize2, Minimize2 } from "lucide-react";
 import type { StudySession } from "@/db/schema";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,6 @@ import {
   useTimerSnapshot,
   type FinalTotals,
 } from "@/lib/timer-store";
-import { getSubjectColor } from "@/lib/colors";
 import {
   getShortcut,
   isEditableTarget,
@@ -69,23 +67,74 @@ export function Timer({ initialSession, subjects = [] }: TimerProps) {
   return <TimerBody initialSession={initialSession} subjects={subjects} />;
 }
 
+/** The card shell and the clock's own size, so nothing resizes on hydration. */
+const CARD_CLASS =
+  "relative w-full overflow-hidden rounded-4xl border border-border/60 bg-card px-6 py-14 text-center [box-shadow:var(--shadow-raised)] sm:px-12 sm:py-16";
+const CLOCK_CLASS =
+  "type-display w-full text-[clamp(4rem,19cqw,7.5rem)] select-none";
+
 /**
  * Shown for the handful of frames before the store can answer. Same card shell
  * as the live timer, so the number appearing does not resize the page.
  */
 function TimerPlaceholder() {
   return (
-    <div className="w-full">
-      <div className="rounded-4xl border border-border/60 bg-card p-6 sm:p-10 lg:p-14 text-center backdrop-blur-xl">
-        <div className="@container relative space-y-6 w-full max-w-xl mx-auto">
-          <div className="py-2 sm:py-4">
-            <div className="text-[clamp(2.5rem,20cqw,7rem)] font-mono font-black tracking-tight select-none leading-none w-full text-muted-foreground/30">
-              --:--:--
-            </div>
-          </div>
+    <div className={CARD_CLASS}>
+      <div className="@container relative mx-auto w-full max-w-xl">
+        <div className={cn(CLOCK_CLASS, "text-muted-foreground/20")} aria-hidden>
+          --:--:--
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Running or paused, in one word and one dot.
+ *
+ * The two states are the only place in the app that spends a saturated colour,
+ * and they spend the same one: green for running, amber for paused. Previously
+ * each also carried its own tinted card border, coloured glow and pill, so the
+ * same information was stated three times in three colours.
+ */
+function TimerState({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[11px] font-medium",
+        active ? "text-running-foreground" : "text-paused-foreground"
+      )}
+    >
+      <span className="relative flex size-2">
+        {active && (
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-running opacity-75" />
+        )}
+        <span
+          className={cn(
+            "relative inline-flex size-2 rounded-full",
+            active ? "bg-running shadow-[0_0_8px_var(--running)]" : "bg-paused shadow-[0_0_8px_var(--paused)]"
+          )}
+        />
+      </span>
+      {active ? "Running" : "Paused"}
+    </span>
+  );
+}
+
+/**
+ * A shortcut hint, in the app's own kbd chip. One component so the timer, the
+ * idle hero and the fullscreen view cannot drift apart in how they render a key.
+ */
+function Kbd({ label, id }: { label: string; id?: Parameters<typeof shortcutKbdClass>[0] }) {
+  return (
+    <kbd
+      className={cn(
+        "rounded-[4px] border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground",
+        id ? shortcutKbdClass(id) : undefined
+      )}
+    >
+      {label}
+    </kbd>
   );
 }
 
@@ -113,11 +162,15 @@ function AnimatedTimerDisplay({
 }) {
   const label = formatTimerDisplay(elapsedSeconds);
   return (
-    <div className={cn("flex justify-center tabular-nums", className)}>
+    <div className={cn("flex justify-center", className)}>
       <span role="timer" aria-label={`Elapsed time ${label}`} className="contents">
         {label.split("").map((char, i) =>
           char === ":" ? (
-            <span key={`sep-${i}`} aria-hidden className="relative inline-grid min-w-[0.62ch] place-items-center">
+            <span
+              key={`sep-${i}`}
+              aria-hidden
+              className="relative inline-grid min-w-[0.5ch] place-items-center text-muted-foreground/45"
+            >
               :
             </span>
           ) : (
@@ -250,34 +303,34 @@ function TimerBody({ initialSession, subjects = [] }: TimerProps) {
   }, [session, status, isStarting, isFinishing, handlePause, handleResume, handleFinish, toggleFullScreen, exitFullScreen]);
 
   const isActive = status === "running";
-  const colorTheme = session ? getSubjectColor(session.subject) : null;
 
   return (
     <div className="w-full">
       {/* State: Idle */}
       {!session && (
-        <div className="rounded-4xl border border-border/50 bg-card p-6 sm:p-10 lg:p-14 text-center [box-shadow:var(--shadow-card),inset_0_1px_0_oklch(1_0_0_/_0.6)]">
-          <div className="relative space-y-6 max-w-xl mx-auto">
-            <div className="inline-flex items-center justify-center p-1 rounded-full overflow-hidden mb-1">
-              <Image
-                src="/images/session_buddy.svg"
-                alt="Start session"
-                width={150}
-                height={150}
-                className="h-28 w-28 sm:w-40 sm:h-40"
-              />
+        <div className={CARD_CLASS}>
+          {/* Subtle ambient accent glow */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(65% 55% at 50% 50%, color-mix(in oklch, var(--primary) 9%, transparent), transparent 70%)",
+            }}
+          />
+
+          <div className="@container relative mx-auto w-full max-w-xl">
+            {/* The clock at rest. It was replaced by a 160px mascot; a timer
+                that shows a cartoon until you start it is hiding what it is. */}
+            <div className="select-none text-muted-foreground/20" aria-hidden>
+              <div className={CLOCK_CLASS}>00:00:00</div>
             </div>
 
-            <div className="space-y-3">
-              <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground">
-                Ready to focus?
-              </h2>
-              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-md mx-auto">
-                Track your focused time honestly and simply.
-              </p>
-            </div>
+            <p className="mt-8 text-[15px] font-medium text-muted-foreground">
+              Ready when you are.
+            </p>
 
-            <div className="pt-2">
+            <div className="mt-6 flex justify-center">
               <StartSessionModal
                 subjects={subjects}
                 open={isStarting}
@@ -285,289 +338,182 @@ function TimerBody({ initialSession, subjects = [] }: TimerProps) {
               />
             </div>
 
-            <p className={`${shortcutHintClass("start")} text-sm text-muted-foreground font-semibold`}>
-              Press{" "}
-              <kbd className="font-mono bg-muted/80 px-2.5 py-0.5 rounded-full border border-border font-bold shadow-2xs">
-                {startShortcut.label}
-              </kbd>{" "}
-              to start instantly
+            <p
+              className={cn(
+                shortcutHintClass("start"),
+                "mt-5 text-[11px] text-muted-foreground"
+              )}
+            >
+              or press <Kbd label={startShortcut.label} /> to start
             </p>
           </div>
         </div>
       )}
 
       {/* State: Running or Paused (normal view) */}
-      {session && colorTheme && !isFullScreen && (
-        <div
-          className={cn(
-            "rounded-4xl border p-6 sm:p-10 lg:p-14 text-center transition-all duration-300 relative backdrop-blur-xl",
-            isActive
-              ? "border-emerald-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(16,185,129,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
-              : "border-amber-500/30 bg-card [box-shadow:var(--shadow-card),0_0_50px_rgba(245,158,11,0.08),inset_0_1px_0_oklch(1_0_0_/_0.6)]"
-          )}
-        >
-          {/* Top Row: Fullscreen button */}
-          <div className="absolute top-6 right-6 sm:top-8 sm:right-8">
+      {session && !isFullScreen && (
+        <div className={CARD_CLASS}>
+          {/*
+            The one place colour is earned: a soft bloom behind the clock, so
+            "is it still running?" is answerable from across a room. It is a
+            background wash, not a border, glow or badge restating the same
+            fact three more times.
+          */}
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-0 transition-opacity duration-500",
+              isActive ? "opacity-100" : "opacity-0"
+            )}
+            style={{
+              background:
+                "radial-gradient(75% 65% at 50% 42%, color-mix(in oklch, var(--running) 24%, transparent) 0%, color-mix(in oklch, var(--primary) 12%, transparent) 50%, transparent 75%)",
+            }}
+          />
+
+          <div className="relative flex justify-end">
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
               onClick={enterFullScreen}
-              className="rounded-full gap-2 text-xs font-semibold px-3.5 py-1.5 text-muted-foreground hover:text-foreground bg-card/80 border-border/70 shadow-2xs hover:shadow-xs transition-all"
-              title="Full screen (M)"
+              className="text-muted-foreground hover:text-foreground"
+              title={`Full screen (${toggleFullScreenShortcut.label})`}
             >
-              <Maximize2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Full Screen</span>
-              <kbd className={`${shortcutKbdClass("toggleFullScreen")} font-mono bg-muted px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold`}>
-                {toggleFullScreenShortcut.label}
-              </kbd>
+              <Maximize2 className="size-4" />
+              <span className="sr-only">Full screen</span>
             </Button>
           </div>
 
-          <div className="@container relative space-y-6 w-full max-w-xl mx-auto">
-            {/* Subject & Topic Header */}
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center justify-center gap-2.5">
-                <span
-                  className={cn(
-                    "px-4 py-1 rounded-full text-xs sm:text-sm font-black border shadow-2xs",
-                    colorTheme.badge
-                  )}
-                >
-                  {session.subject}
-                </span>
-
-                {isActive ? (
-                  <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 bg-emerald-500/15 shadow-sm shadow-emerald-500/15">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    Active Focus
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
-                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                    Timer Paused
-                  </div>
-                )}
+          <div className="@container relative mx-auto -mt-2 w-full max-w-xl">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-center gap-3">
+                <span className="type-label">{session.subject}</span>
+                <TimerState active={isActive} />
               </div>
 
               {session.topic && (
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground sm:text-xl">
                   {session.topic}
                 </h2>
               )}
               {session.goal && (
-                <p className="text-sm sm:text-base text-muted-foreground font-medium">
-                  <span className="font-semibold text-foreground/80">Goal:</span> {session.goal}
-                </p>
+                <p className="text-[13px] text-muted-foreground">{session.goal}</p>
               )}
             </div>
 
-            {/* Digital Timer Display */}
-            <div className="py-2 sm:py-4">
-              <div
-                className={cn(
-                  "text-[clamp(2.5rem,20cqw,7rem)] font-mono font-black tracking-tight select-none transition-all duration-300 leading-none w-full",
-                  isActive
-                    ? "text-foreground drop-shadow-sm"
-                    : "text-muted-foreground opacity-60"
-                )}
-              >
-                <AnimatedTimerDisplay elapsedSeconds={elapsedSeconds} />
-              </div>
-              <p className="text-xs sm:text-sm uppercase font-extrabold tracking-widest text-muted-foreground/80 mt-4">
-                {isActive ? "Deep Focus in Progress" : "Timer Paused"}
-              </p>
+            <div className="mt-7 select-none text-foreground">
+              <AnimatedTimerDisplay elapsedSeconds={elapsedSeconds} className={CLOCK_CLASS} />
             </div>
 
-            {/* Playful Pill Control Buttons */}
-            <div className="flex flex-wrap items-center justify-center gap-3.5 pt-2">
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-2.5">
               {isActive ? (
-                <Button
-                  variant="amber"
-                  size="lg"
-                  onClick={handlePause}
-                  className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
-                >
-                  <Pause className="h-5 w-5 fill-current" />
+                <Button variant="default" size="lg" onClick={handlePause} className="px-7">
+                  <Pause className="size-4" />
                   Pause
                 </Button>
               ) : (
-                <Button
-                  variant="emerald"
-                  size="lg"
-                  onClick={handleResume}
-                  className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
-                >
-                  <Play className="h-5 w-5 fill-current" />
+                <Button variant="default" size="lg" onClick={handleResume} className="px-7">
+                  <Play className="size-4" />
                   Resume
                 </Button>
               )}
 
-              <Button
-                variant="rose"
-                size="lg"
-                onClick={handleFinish}
-                className="gap-2.5 px-8 text-base shadow-md hover:scale-105 active:scale-95 transition-all"
-              >
-                <Square className="h-5 w-5 fill-current" />
+              <Button variant="outline" size="lg" onClick={handleFinish}>
+                <Square className="size-3.5" />
                 Finish
               </Button>
             </div>
 
-            {/* Shortcut hint */}
-            <p className={`${shortcutHintClass("pauseResume", "finish", "toggleFullScreen")} text-sm text-muted-foreground/80 font-medium`}>
-              <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-                {pauseResumeShortcut.label}
-              </kbd>{" "}
-              to {isActive ? "pause" : "resume"} ·{" "}
-              <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-                {finishShortcut.label}
-              </kbd>{" "}
-              to finish ·{" "}
-              <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-                {toggleFullScreenShortcut.label}
-              </kbd>{" "}
-              for full screen
+            <p
+              className={cn(
+                shortcutHintClass("pauseResume", "finish", "toggleFullScreen"),
+                "mt-6 text-[11px] text-muted-foreground"
+              )}
+            >
+              <Kbd label={pauseResumeShortcut.label} id="pauseResume" /> to{" "}
+              {isActive ? "pause" : "resume"} ·{" "}
+              <Kbd label={finishShortcut.label} id="finish" /> to finish ·{" "}
+              <Kbd label={toggleFullScreenShortcut.label} id="toggleFullScreen" /> for full
+              screen
             </p>
           </div>
         </div>
       )}
 
       {/* Full Screen Immersive Mode — rendered inside the fullscreen element */}
-      {session && colorTheme && isFullScreen && (
-        <div className="@container fixed inset-0 z-50 bg-background flex flex-col justify-between p-6 sm:p-10 md:p-14 overflow-hidden animate-in fade-in duration-200">
-          {/* Top Bar */}
-          <div className="flex items-center justify-between w-full max-w-6xl mx-auto">
+      {session && isFullScreen && (
+        <div className="@container fixed inset-0 z-50 flex flex-col justify-between overflow-hidden bg-background p-6 sm:p-10 md:p-14">
+          <div className="flex w-full max-w-6xl items-center justify-between mx-auto">
             <div className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "px-4 py-1.5 rounded-full text-sm font-black border shadow-2xs",
-                  colorTheme.badge
-                )}
-              >
-                {session.subject}
-              </span>
-
-              {isActive ? (
-                <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 bg-emerald-500/15 shadow-sm shadow-emerald-500/15">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                  </span>
-                  Active Focus
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300 border border-amber-500/30 bg-amber-500/15 shadow-sm shadow-amber-500/15">
-                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                  Timer Paused
-                </div>
-              )}
+              <span className="type-label">{session.subject}</span>
+              <TimerState active={isActive} />
             </div>
 
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={exitFullScreen}
-              className="rounded-full gap-2 text-xs font-semibold px-4 shadow-2xs"
+              className="text-muted-foreground hover:text-foreground"
             >
-              <Minimize2 className="h-3.5 w-3.5" />
+              <Minimize2 className="size-3.5" />
               Exit
-              <kbd className={`${shortcutKbdClass("exitFullScreen")} font-mono bg-muted/80 px-1.5 py-0.5 rounded-full text-[10px] border border-border font-bold`}>
-                {exitFullScreenShortcut.label}
-              </kbd>
+              <Kbd label={exitFullScreenShortcut.label} id="exitFullScreen" />
             </Button>
           </div>
 
-          {/* Center Immersive Timer */}
-          <div className="flex flex-col items-center justify-center text-center space-y-6 my-auto">
+          <div className="flex flex-col items-center justify-center gap-6 my-auto text-center">
             {session.topic && (
-              <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-foreground max-w-2xl">
+              <h2 className="max-w-2xl text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
                 {session.topic}
               </h2>
             )}
             {session.goal && (
-              <p className="text-base sm:text-lg text-muted-foreground font-medium max-w-lg">
-                <span className="font-semibold text-foreground/80">Goal:</span> {session.goal}
-              </p>
+              <p className="max-w-lg text-sm text-muted-foreground">{session.goal}</p>
             )}
 
-            <div className="select-none">
-              <div
-                className={cn(
-                  "font-mono font-black tracking-tight leading-none transition-all duration-300",
-                  // Scales with the fullscreen container so the timer never overflows
-                  "text-[clamp(2.75rem,13cqw,16rem)]",
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground opacity-60"
-                )}
-              >
-                <AnimatedTimerDisplay elapsedSeconds={elapsedSeconds} />
-              </div>
-              <p className="text-base sm:text-lg uppercase font-bold tracking-widest text-muted-foreground/70 mt-6">
-                {isActive ? "Deep Focus in Progress" : "Timer Paused"}
-              </p>
+            <div className="select-none text-foreground">
+              <AnimatedTimerDisplay
+                elapsedSeconds={elapsedSeconds}
+                className="type-display text-[clamp(3rem,12cqw,14rem)]"
+              />
             </div>
 
-            {/* Pill Control Buttons */}
-            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               {isActive ? (
-                <Button
-                  variant="amber"
-                  size="lg"
-                  onClick={handlePause}
-                  className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
-                >
-                  <Pause className="h-5 w-5 fill-current" />
+                <Button variant="default" size="lg" onClick={handlePause} className="px-8">
+                  <Pause className="size-4" />
                   Pause
                 </Button>
               ) : (
-                <Button
-                  variant="emerald"
-                  size="lg"
-                  onClick={handleResume}
-                  className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
-                >
-                  <Play className="h-5 w-5 fill-current" />
+                <Button variant="default" size="lg" onClick={handleResume} className="px-8">
+                  <Play className="size-4" />
                   Resume
                 </Button>
               )}
 
               <Button
-                variant="rose"
+                variant="outline"
                 size="lg"
                 onClick={() => {
                   exitFullScreen();
                   handleFinish();
                 }}
-                className="gap-2.5 px-10 py-4 text-lg shadow-lg hover:scale-105 active:scale-95 transition-all"
               >
-                <Square className="h-5 w-5 fill-current" />
+                <Square className="size-3.5" />
                 Finish
               </Button>
             </div>
           </div>
 
-          {/* Bottom Shortcut bar */}
-          <div className={`${shortcutHintClass("pauseResume", "finish", "exitFullScreen", "toggleFullScreen")} text-center text-sm text-muted-foreground/70 font-medium max-w-6xl mx-auto`}>
-            Press{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-              {pauseResumeShortcut.label}
-            </kbd>{" "}
-            to {isActive ? "pause" : "resume"} ·{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-              {finishShortcut.label}
-            </kbd>{" "}
-            to finish ·{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-              {exitFullScreenShortcut.label}
-            </kbd>{" "}
-            or{" "}
-            <kbd className="font-mono bg-muted/80 px-2 py-0.5 rounded-full border border-border shadow-2xs font-bold">
-              {toggleFullScreenShortcut.label}
-            </kbd>{" "}
+          <div
+            className={cn(
+              shortcutHintClass("pauseResume", "finish", "exitFullScreen", "toggleFullScreen"),
+              "mx-auto max-w-6xl text-center text-[11px] text-muted-foreground"
+            )}
+          >
+            <Kbd label={pauseResumeShortcut.label} id="pauseResume" /> to{" "}
+            {isActive ? "pause" : "resume"} ·{" "}
+            <Kbd label={finishShortcut.label} id="finish" /> to finish
           </div>
         </div>
       )}
