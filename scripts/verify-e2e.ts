@@ -14,12 +14,14 @@ import {
   getAllSubjects,
   getDailyAnalytics,
   getDashboardSummary,
+  getHeatmapAnalytics,
   getSessionById,
   getSessions,
   getSubjectAnalytics,
   getTopicAnalytics,
 } from "../lib/queries";
-import { formatDateInZone, getDayRange, getWeekRange } from "../lib/timezone";
+import { formatDateInZone, getDayRange, getHeatmapRange, getWeekRange } from "../lib/timezone";
+import { getHeatmapLevel, HEATMAP_LEVELS, HEATMAP_WEEKS } from "../lib/heatmap";
 import { canSkipReconcile } from "../lib/timer-store";
 import {
   formatTimerDisplay,
@@ -633,6 +635,255 @@ async function runVerification() {
   );
   await studySessions.deleteMany({ _id: { $in: caseIds } });
 
+  // 24. The calendar heatmap. A year is a different query on a different range
+  //     from the week-scoped panels above it, and it has three properties the
+  //     week view has no chance to expose: a 364-cell grid, a boundary that
+  //     moves with the day, and a range far enough back that a session from
+  //     last month has to appear without anyone asking for it. So it runs here,
+  //     while the probe sessions it depends on still exist.
+  const heatmapRef = new Date("2026-09-23T12:00:00Z");
+  const heatmap = getHeatmapRange(heatmapRef, "UTC", HEATMAP_WEEKS);
+  const flatDays = heatmap.columns.flat();
+
+  check(
+    "Heatmap is 52 week columns of 7 days",
+    heatmap.columns.length === HEATMAP_WEEKS &&
+      heatmap.columns.every((w) => w.length === 7),
+    { columns: heatmap.columns.length }
+  );
+  check(
+    "Every heatmap column starts on a Monday",
+    heatmap.columns.every((w) => new Date(`${w[0]}T00:00:00Z`).getUTCDay() === 1),
+    heatmap.columns[0][0]
+  );
+  check(
+    "Consecutive heatmap columns are contiguous, with no gap or overlap",
+    heatmap.columns.every((week, i) => {
+      if (i === 0) return true;
+      const next = new Date(`${heatmap.columns[i - 1][6]}T00:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      return week[0] === next.toISOString().slice(0, 10);
+    })
+  );
+  // A year of keys built with a fixed 86400s step drifts across DST and loses
+  // Feb 29, which would shear the grid by a row and drop a day of real history.
+  check(
+    "A year of heatmap columns has no duplicated or skipped days",
+    new Set(flatDays).size === HEATMAP_WEEKS * 7
+  );
+  // The last column is a whole Mon-Sun week, so it extends past `today`. Those
+  // trailing cells are what the component paints invisible, and the range `to`
+  // is what stops a forward-dated session from landing in one of them.
+  check(
+    "The last column is a full week that contains today and continues past it",
+    heatmap.today === "2026-09-23" &&
+      heatmap.columns[HEATMAP_WEEKS - 1][0] <= heatmap.today &&
+      heatmap.columns[HEATMAP_WEEKS - 1][6] > heatmap.today,
+    { today: heatmap.today, last: heatmap.columns[HEATMAP_WEEKS - 1][6] }
+  );
+  check(
+    "The heatmap range ends at the end of today, not the end of the week",
+    heatmap.to === getDayRange(heatmapRef, "UTC").to
+  );
+  check(
+    "The heatmap range reaches back a full 52 weeks",
+    heatmap.from <= week.from &&
+      heatmap.to - heatmap.from > 350 * 24 * 3600,
+    { days: Math.round((heatmap.to - heatmap.from) / 86400) }
+  );
+  check(
+    "Days after today are distinguishable from days with no data",
+    (() => {
+      const last = heatmap.columns[HEATMAP_WEEKS - 1];
+      const future = last.filter((d) => d > heatmap.today);
+      // Every day from tomorrow to the end of the current week, and no more.
+      return (
+        future.length > 0 &&
+        future[0] === "2026-09-24" &&
+        future[future.length - 1] === last[6] &&
+        last.filter((d) => d <= heatmap.today).length === 3
+      );
+    })(),
+    heatmap.columns[HEATMAP_WEEKS - 1]
+  );
+  check(
+    "The heatmap range is the same shape in every zone, DST included",
+    ["UTC", "America/New_York", "Asia/Kolkata", "Pacific/Kiritimati", "Pacific/Chatham"].every(
+      (tz) => {
+        const h = getHeatmapRange(heatmapRef, tz, HEATMAP_WEEKS);
+        return (
+          h.columns.length === HEATMAP_WEEKS &&
+          h.to === getDayRange(heatmapRef, tz).to &&
+          new Set(h.columns.flat()).size === HEATMAP_WEEKS * 7
+        );
+      }
+    )
+  );
+
+  // Two fixtures: one from a month ago (in the year, outside the week) and one
+  // that shares a day with the probe, to prove same-day sessions aggregate.
+  const monthOldId = crypto.randomUUID();
+  const monthOldInstant = Math.floor(
+    new Date("2026-08-10T12:00:00Z").getTime() / 1000
+  );
+  const sameDayId = crypto.randomUUID();
+  await studySessions.insertMany([
+    fromStudySession({
+      id: monthOldId,
+      userId,
+      subject: "Heatmap Probe",
+      status: "completed",
+      startedAt: monthOldInstant,
+      durationSeconds: 5400,
+    }),
+    fromStudySession({
+      id: sameDayId,
+      userId,
+      subject: "Heatmap Probe",
+      status: "completed",
+      startedAt: Math.floor(new Date("2026-09-21T09:00:00Z").getTime() / 1000),
+      durationSeconds: 1800,
+    }),
+  ]);
+
+  const heatmapRange = { from: heatmap.from, to: heatmap.to };
+  const heatmapRows = await getHeatmapAnalytics(userId, heatmapRange, "UTC");
+
+  check(
+    "The heatmap shows a session from a month ago that the week view cannot",
+    (heatmapRows.find((r) => r.date === "2026-08-10")?.durationSeconds ?? 0) >= 5400,
+    heatmapRows.map((r) => r.date)
+  );
+  check(
+    "The week range hides that same session from the heatmap",
+    !(await getHeatmapAnalytics(userId, weekRange, "UTC")).some(
+      (r) => r.date === "2026-08-10"
+    )
+  );
+  check(
+    "Two sessions on one day collapse into a single summed row",
+    (() => {
+      const day = heatmapRows.find((r) => r.date === "2026-09-21");
+      // 600s probe + 1800s same-day fixture, in one row.
+      return day !== undefined && day.sessionCount === 2 && day.durationSeconds === 2400;
+    })(),
+    heatmapRows.find((r) => r.date === "2026-09-21")
+  );
+  // Sparse by design: the component looks days up in a Map and paints a miss as
+  // the absent swatch, so shipping 364 mostly-zero rows would be pure payload.
+  check(
+    "The heatmap is sparse — only days with focus time come back",
+    heatmapRows.every((r) => r.durationSeconds > 0) &&
+      heatmapRows.length < HEATMAP_WEEKS * 7,
+    heatmapRows.length
+  );
+  check(
+    "Heatmap rows come back in date order, so the grid never shuffles",
+    heatmapRows.every((r, i) => i === 0 || r.date > heatmapRows[i - 1].date)
+  );
+  check(
+    "A zero-duration completed session paints no day",
+    await (async () => {
+      const zeroId = crypto.randomUUID();
+      await studySessions.insertOne(
+        fromStudySession({
+          id: zeroId,
+          userId,
+          subject: "Heatmap Probe",
+          status: "completed",
+          startedAt: Math.floor(new Date("2026-08-11T12:00:00Z").getTime() / 1000),
+          durationSeconds: 0,
+        })
+      );
+      const rows = await getHeatmapAnalytics(userId, heatmapRange, "UTC");
+      return !rows.some((r) => r.date === "2026-08-11");
+    })()
+  );
+
+  // Zone sensitivity. The 20:00-UTC probe is Monday in New York and Tuesday in
+  // Kolkata, and the heatmap has to file it exactly the way the week chart does —
+  // same instant, same day boundary, or a year of history is misfiled.
+  // Zone sensitivity. The two probe sessions are 11h apart in UTC (09:00 and
+  // 20:00). Both fall on 2026-09-21 in UTC and in New York, so they merge into
+  // one 2400s cell. In Kolkata the 20:00 one is 01:30 the NEXT day, so the
+  // local day boundary splits them across two cells. That split is the point:
+  // the heatmap has to redraw history the same way the week chart does, not
+  // once at UTC and then again everywhere else.
+  const nyRows = await getHeatmapAnalytics(userId, heatmapRange, "America/New_York");
+  const nyMap = Object.fromEntries(nyRows.map((r) => [r.date, r.durationSeconds]));
+  const kolkataRows = await getHeatmapAnalytics(userId, heatmapRange, "Asia/Kolkata");
+  const kolkataMap = Object.fromEntries(
+    kolkataRows.map((r) => [r.date, r.durationSeconds])
+  );
+
+  check(
+    "New York merges both probes onto Monday 2026-09-21",
+    nyMap["2026-09-21"] === 2400 && nyMap["2026-09-22"] === undefined,
+    { mon: nyMap["2026-09-21"], tue: nyMap["2026-09-22"] }
+  );
+  check(
+    "Kolkata splits them across the local day boundary, 1800 then 600",
+    kolkataMap["2026-09-21"] === 1800 && kolkataMap["2026-09-22"] === 600,
+    { mon: kolkataMap["2026-09-21"], tue: kolkataMap["2026-09-22"] }
+  );
+  // Redistribution, never loss: whichever way the boundary falls, the same 2400
+  // seconds of focus have to be on the grid.
+  check(
+    "Day bucketing redistributes the same total in every zone, never drops it",
+    [nyRows, kolkataRows, heatmapRows].every(
+      (rows) =>
+        rows
+          .filter((r) => r.date === "2026-09-21" || r.date === "2026-09-22")
+          .reduce((sum, r) => sum + r.durationSeconds, 0) === 2400
+    )
+  );
+  check(
+    "Every heatmap row lands on a date the grid actually draws",
+    ["UTC", "America/New_York", "Asia/Kolkata", "Pacific/Kiritimati", "Pacific/Chatham"]
+      .length > 0 &&
+      (await Promise.all(
+        ["UTC", "America/New_York", "Asia/Kolkata", "Pacific/Kiritimati", "Pacific/Chatham"].map(
+          (tz) => getHeatmapAnalytics(userId, heatmapRange, tz)
+        )
+      )).every((rows) =>
+        rows.every((r) => flatDays.includes(r.date) && r.date <= heatmap.today)
+      )
+  );
+
+  // The colour scale. Fixed hour thresholds, not quantiles of the user's own
+  // distribution: one 14-hour day would otherwise pull the top quartile up far
+  // enough to flatten a solid 3-hour day into the bottom bucket, and the scale
+  // would quietly mean something different depending on the user's worst day.
+  check("Zero and negative durations fall to the absent swatch", getHeatmapLevel(0) === 0 && getHeatmapLevel(-10) === 0);
+  check("A NaN duration falls to the absent swatch rather than throwing", getHeatmapLevel(NaN) === 0);
+  check("Level 1 is under an hour", getHeatmapLevel(1) === 1 && getHeatmapLevel(3599) === 1);
+  check("Level 2 is 1h up to 2h", getHeatmapLevel(3600) === 2 && getHeatmapLevel(7199) === 2);
+  check("Level 3 is 2h up to 4h", getHeatmapLevel(7200) === 3 && getHeatmapLevel(14399) === 3);
+  check("Level 4 is 4h and up, with no ceiling", getHeatmapLevel(14400) === 4 && getHeatmapLevel(86400) === 4);
+  check(
+    "A single outlier does not compress a normal day",
+    getHeatmapLevel(3 * 3600) === 3 && getHeatmapLevel(14 * 3600) === 4
+  );
+  check(
+    "The scale is monotonic, covers every level, and labels each one",
+    HEATMAP_LEVELS.map((l) => l.level).join(",") === "0,1,2,3,4" &&
+      HEATMAP_LEVELS.every((l) => l.className.length > 0 && l.label.length > 0) &&
+      getHeatmapLevel(0) < getHeatmapLevel(3600) &&
+      getHeatmapLevel(3600) < getHeatmapLevel(7200) &&
+      getHeatmapLevel(7200) < getHeatmapLevel(14400)
+  );
+  // Tailwind's scanner reads the source, so a `bg-emerald-${i}` literal here
+  // would compile fine and render as no colour at all.
+  check(
+    "Every swatch class is a literal Tailwind class, not an interpolated one",
+    HEATMAP_LEVELS.every((l) => !l.className.includes("${"))
+  );
+
+  await studySessions.deleteMany({ _id: { $in: [monthOldId, sameDayId] } });
+  await studySessions.deleteMany({
+    userId,
+    subject: "Heatmap Probe",
+  });
   await studySessions.deleteOne({ _id: zonedId });
   await studySessions.deleteOne({ _id: oldId });
 
