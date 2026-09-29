@@ -55,6 +55,13 @@ export interface TopicMetric {
   durationSeconds: number;
 }
 
+export interface HeatmapMetric {
+  /** YYYY-MM-DD, in the caller's zone. */
+  date: string;
+  durationSeconds: number;
+  sessionCount: number;
+}
+
 /**
  * `subject` folded the way `lib/subjects.ts#subjectKey` folds it, but as far as
  * the aggregation pipeline is able to. Applied at read time on purpose: it merges
@@ -568,6 +575,59 @@ export async function getTopicAnalytics(
       a.subject.localeCompare(b.subject) ||
       a.topic.localeCompare(b.topic)
   );
+}
+
+/**
+ * Focus time per calendar day over a range, for the heatmap.
+ *
+ * Deliberately SPARSE — one row per day that has focus time, and no row at all
+ * for the rest. `getDailyAnalytics` pre-seeds all seven of its buckets because
+ * seven is a number you can see; a year is 364 keys, and shipping 364 mostly
+ * zero-valued objects across the RSC boundary to render a grid the client
+ * already knows the shape of is the wrong trade. The grid looks days up in a Map
+ * and paints a miss as the absent swatch, which is the same answer for free.
+ *
+ * `timeZone` has to be the zone the caller derived the range with, for the same
+ * reason it does in `getDailyAnalytics`: bounds and bucket keys from one zone,
+ * or the minutes are dropped rather than shown on the wrong cell.
+ *
+ * Days with only zero-duration completed sessions are excluded by the
+ * `durationSeconds` filter below, so "a day you did not focus" and "a day that
+ * happens to appear in the index" stay the same thing.
+ */
+export async function getHeatmapAnalytics(
+  userId: string,
+  range: RangeFilter,
+  timeZone: string = SERVER_TIME_ZONE
+): Promise<HeatmapMetric[]> {
+  const grouped = await studySessions
+    .aggregate<{ _id: string; duration: number; count: number }>([
+      {
+        $match: {
+          userId,
+          status: "completed",
+          durationSeconds: { $gt: 0 },
+          ...startedAtInRange(range),
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { ...dateToStringOptions(timeZone), date: "$startedAt" },
+          },
+          duration: { $sum: "$durationSeconds" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ])
+    .toArray();
+
+  return grouped.map((row) => ({
+    date: row._id,
+    durationSeconds: row.duration,
+    sessionCount: row.count,
+  }));
 }
 
 /**
