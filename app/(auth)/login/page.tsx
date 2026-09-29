@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
 import { BrandMark } from "@/components/brand-mark";
 import { LoginForm } from "./login-form";
 
@@ -9,32 +8,35 @@ export const metadata: Metadata = {
   description: "Sign in to your TickTock account.",
 };
 
+/**
+ * No card. A sign-in form is three fields; wrapping it in a bordered, elevated
+ * panel put a box on the page that the eye had to resolve before it could read
+ * the form. The form is the page.
+ */
 export default function LoginPage() {
   return (
-    <Card className="w-full max-w-sm border-border/60 bg-card/50 rounded-4xl shadow-xs">
-      <CardContent className="pt-8 pb-8 px-7">
-        <div className="flex flex-col items-center gap-3 mb-6">
-          <BrandMark />
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-            Welcome back
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sign in with your username to keep tracking your focus.
-          </p>
-        </div>
-
-        <LoginForm />
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          New here?{" "}
-          <Link
-            href="/signup"
-            className="font-semibold text-foreground hover:underline underline-offset-4"
-          >
-            Create an account
-          </Link>
+    <div className="w-full max-w-sm">
+      <div className="mb-8 flex flex-col items-center gap-3 text-center">
+        <BrandMark className="size-11 rounded-xl" />
+        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-foreground">
+          Welcome back
+        </h1>
+        <p className="text-[13px] text-muted-foreground">
+          Sign in to pick up where you left off.
         </p>
-      </CardContent>
-    </Card>
+      </div>
+
+      <LoginForm />
+
+      <p className="mt-7 text-center text-[13px] text-muted-foreground">
+        New here?{" "}
+        <Link
+          href="/signup"
+          className="font-medium text-foreground underline underline-offset-4 hover:opacity-70"
+        >
+          Create an account
+        </Link>
+      </p>
+    </div>
   );
 }

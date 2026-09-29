@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
 import { BrandMark } from "@/components/brand-mark";
 import { SignupForm } from "./signup-form";
 
@@ -11,30 +10,28 @@ export const metadata: Metadata = {
 
 export default function SignupPage() {
   return (
-    <Card className="w-full max-w-sm border-border/60 bg-card/50 rounded-4xl shadow-xs">
-      <CardContent className="pt-8 pb-8 px-7">
-        <div className="flex flex-col items-center gap-3 mb-6">
-          <BrandMark />
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-            Create your account
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Pick a username and password to start tracking your focused hours.
-          </p>
-        </div>
-
-        <SignupForm />
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link
-            href="/login"
-            className="font-semibold text-foreground hover:underline underline-offset-4"
-          >
-            Sign in
-          </Link>
+    <div className="w-full max-w-sm">
+      <div className="mb-8 flex flex-col items-center gap-3 text-center">
+        <BrandMark className="size-11 rounded-xl" />
+        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-foreground">
+          Create your account
+        </h1>
+        <p className="text-[13px] text-muted-foreground">
+          A username and a password. That&apos;s it.
         </p>
-      </CardContent>
-    </Card>
+      </div>
+
+      <SignupForm />
+
+      <p className="mt-7 text-center text-[13px] text-muted-foreground">
+        Already have an account?{" "}
+        <Link
+          href="/login"
+          className="font-medium text-foreground underline underline-offset-4 hover:opacity-70"
+        >
+          Sign in
+        </Link>
+      </p>
+    </div>
   );
 }

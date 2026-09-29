@@ -12,7 +12,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending} size="lg" className="w-full">
-      {pending ? "Creating account..." : "Create account"}
+      {pending ? "Creating account…" : "Create account"}
     </Button>
   );
 }
@@ -26,19 +26,16 @@ export function SignupForm() {
   return (
     <form action={formAction} className="space-y-4">
       {state?.error && (
-        <div
+        <p
           role="alert"
-          className="p-3 text-sm rounded-2xl bg-destructive/10 text-destructive font-medium border border-destructive/20"
+          className="rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2 text-[13px] font-medium text-destructive"
         >
           {state.error}
-        </div>
+        </p>
       )}
 
       <div className="space-y-1.5">
-        <label
-          htmlFor={usernameId}
-          className="text-sm font-semibold text-foreground"
-        >
+        <label htmlFor={usernameId} className="block text-[13px] font-medium text-foreground">
           Username
         </label>
         <Input
@@ -47,16 +44,12 @@ export function SignupForm() {
           autoComplete="username"
           placeholder="your_username"
           required
-          className="h-11 rounded-full text-base"
           autoFocus
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor={passwordId}
-          className="text-sm font-semibold text-foreground"
-        >
+        <label htmlFor={passwordId} className="block text-[13px] font-medium text-foreground">
           Password
         </label>
         <PasswordInput
@@ -65,15 +58,11 @@ export function SignupForm() {
           autoComplete="new-password"
           placeholder="At least 8 characters"
           required
-          className="h-11 rounded-full text-base"
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor={confirmId}
-          className="text-sm font-semibold text-foreground"
-        >
+        <label htmlFor={confirmId} className="block text-[13px] font-medium text-foreground">
           Confirm password
         </label>
         <Input
@@ -83,11 +72,12 @@ export function SignupForm() {
           autoComplete="new-password"
           placeholder="Re-enter your password"
           required
-          className="h-11 rounded-full text-base"
         />
       </div>
 
-      <SubmitButton />
+      <div className="pt-1">
+        <SubmitButton />
+      </div>
     </form>
   );
 }
