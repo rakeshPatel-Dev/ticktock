@@ -171,10 +171,42 @@ function wallCalendarDate(date: string): Date {
 }
 
 /** Shifts a `YYYY-MM-DD` by whole days without touching any timezone. */
-function shiftDateKey(date: string, days: number): string {
+export function shiftDateKey(date: string, days: number): string {
   return new Date(wallCalendarDate(date).getTime() + days * MS_PER_DAY)
     .toISOString()
     .slice(0, 10);
+}
+
+/** Days in a 1-indexed month, e.g. `daysInMonth(2026, 2) === 28`. */
+function daysInMonth(year: number, month: number): number {
+  // Day 0 of month `month` (0-indexed) is the last day of month `month - 1`,
+  // which is the month being asked about.
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/**
+ * Shifts a `YYYY-MM-DD` by whole months, keeping the day-of-month where the
+ * target month is long enough and clamping where it is not.
+ *
+ * The clamp is the reason this exists rather than a bare `setUTCMonth`: shifting
+ * Jan 31 forward two months with month arithmetic alone lands on March 3, which
+ * is not the month anybody meant. `2026-01-31 +1 → 2026-02-28`, and adding three
+ * more months from there gives May 28 rather than May 3.
+ */
+export function shiftMonthKey(dateKey: string, months: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const absolute = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(absolute / 12);
+  const targetMonth = absolute - targetYear * 12 + 1;
+  const clampedDay = Math.min(day, daysInMonth(targetYear, targetMonth));
+
+  const pad = (n: number, width: number) => String(n).padStart(width, "0");
+  return `${pad(targetYear, 4)}-${pad(targetMonth, 2)}-${pad(clampedDay, 2)}`;
+}
+
+/** `YYYY-MM` for a `YYYY-MM-DD` key. The month half of every month bucket. */
+export function monthKeyOf(dateKey: string): string {
+  return dateKey.slice(0, 7);
 }
 
 export interface DayRange {
@@ -251,6 +283,36 @@ export function getWeekRange(
 function zonedMidnightUtcMs(dateKey: string, timeZone: string): number {
   const [year, month, day] = dateKey.split("-").map(Number);
   return zonedTimeToUtcMs(year, month, day, timeZone);
+}
+
+/**
+ * The bounds of a calendar month or year containing `reference`, in `timeZone`.
+ *
+ * One helper for both because they are the same operation: local midnight on the
+ * first of the period, to local midnight on the first of the next one, minus a
+ * second. A month is therefore 28–31 days long and a DST day inside it is
+ * 23 hours, which is exactly the property `getDayRange` documents one level
+ * down — inherited rather than re-derived.
+ *
+ * Calendar-aligned, not rolling: "this month" is October, not "the last 30 days".
+ * A rolling window would make the same bar mean a different set of days each
+ * time it was rendered, which is the one thing a chart like this cannot do.
+ */
+export function getCalendarRange(
+  reference: Date = new Date(),
+  timeZone: string = SERVER_TIME_ZONE,
+  unit: "month" | "year"
+): DayRange {
+  const { date } = getWallClock(reference, timeZone);
+  // The first of the period. `slice` is safe here because the wall clock hands
+  // back a zero-padded `YYYY-MM-DD`.
+  const firstKey = unit === "year" ? `${date.slice(0, 4)}-01-01` : `${date.slice(0, 7)}-01`;
+  const nextKey = shiftMonthKey(firstKey, unit === "year" ? 12 : 1);
+
+  return {
+    from: Math.floor(zonedMidnightUtcMs(firstKey, timeZone) / 1000),
+    to: Math.floor(zonedMidnightUtcMs(nextKey, timeZone) / 1000) - 1,
+  };
 }
 
 export interface HeatmapRange extends DayRange {
