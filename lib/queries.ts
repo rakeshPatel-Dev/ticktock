@@ -10,7 +10,6 @@ import {
 import {
   dateToStringOptions,
   getDayRange,
-  getWeekRange,
   SERVER_TIME_ZONE,
 } from "@/lib/timezone";
 import { normalizeSubject, subjectKey } from "@/lib/subjects";
@@ -18,6 +17,9 @@ import type { DailyFocusDay } from "@/lib/analytics-range";
 
 /** One sparse day of focus time. Re-exported so consumers need not import both. */
 export type DailyFocusMetric = DailyFocusDay;
+
+/** The heatmap's name for the same rows. */
+export type HeatmapMetric = DailyFocusMetric;
 
 /** Epoch-second bounds. Absent fields mean "unbounded on that side". */
 export interface RangeFilter {
@@ -39,13 +41,6 @@ export interface DashboardSummary {
   activeSession?: StudySession | null;
 }
 
-export interface DailyMetric {
-  date: string; // YYYY-MM-DD
-  dayLabel: string; // "Mon", "Tue", etc.
-  durationSeconds: number;
-  sessionCount: number;
-}
-
 export interface SubjectMetric {
   subject: string;
   durationSeconds: number;
@@ -57,13 +52,6 @@ export interface TopicMetric {
   subject: string;
   topic: string;
   durationSeconds: number;
-}
-
-export interface HeatmapMetric {
-  /** YYYY-MM-DD, in the caller's zone. */
-  date: string;
-  durationSeconds: number;
-  sessionCount: number;
 }
 
 /**
@@ -366,130 +354,6 @@ export async function getDashboardSummary(
 }
 
 /**
- * Focus time grouped by calendar day, **sparse**.
- *
- * Only days with at least one completed, non-zero session come back. The dense,
- * gapped axis is built on top of these rows by `foldDaysIntoBars`, so the range
- * can be a week, a month, a year, or unbounded without the query having to know
- * which — a dense query would have to ship a zero row for every day of an
- * all-time range, which for a multi-year history is thousands of rows the chart
- * cannot show.
- *
- * `range` bounds and the `$dateToString` bucket keys are produced with the same
- * `timeZone`, or a session can be matched by the range and then filed under a key
- * the range never contained — which drops the minutes instead of showing them on
- * the wrong bar.
- */
-export async function getDailyFocus(
-  userId: string,
-  range: RangeFilter,
-  timeZone: string = SERVER_TIME_ZONE
-): Promise<DailyFocusMetric[]> {
-  const grouped = await studySessions
-    .aggregate<{ _id: string; duration: number; count: number }>([
-      {
-        $match: {
-          userId,
-          status: "completed",
-          durationSeconds: { $gt: 0 },
-          ...startedAtInRange(range),
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { ...dateToStringOptions(timeZone), date: "$startedAt" },
-          },
-          duration: { $sum: "$durationSeconds" },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ])
-    .toArray();
-
-  return grouped.map((row) => ({
-    date: row._id,
-    durationSeconds: row.duration,
-    sessionCount: row.count,
-  }));
-}
-
-/**
- * Returns daily activity breakdown for the week (Monday through Sunday) that
- * contains `targetDate`, bucketed by calendar day in `timeZone`.
- */
-export async function getDailyAnalytics(
-  userId: string,
-  targetDate: Date = new Date(),
-  timeZone: string = SERVER_TIME_ZONE
-): Promise<DailyMetric[]> {
-  // ONE range object feeds both halves of this query. That is the whole fix:
-  // the bounds and the bucket keys are derived from the same week, so a
-  // session can never be matched by the range and then filed under a key the
-  // range did not contain.
-  const week = getWeekRange(targetDate, timeZone);
-
-  // Aggregate server-side so a user's whole week never lands in JS memory.
-  //
-  // The `timezone` option on `$dateToString` is load-bearing. Without it Mongo
-  // formats in UTC while the bounds above are zoned, and a 9 PM session in a
-  // UTC+ zone becomes tomorrow's key — a key outside the range, so its minutes
-  // are silently dropped instead of shown on the wrong bar.
-  const grouped = await studySessions
-    .aggregate<{ _id: string; duration: number; count: number }>([
-      {
-        $match: {
-          userId,
-          status: "completed",
-          startedAt: {
-            $gte: fromEpochSeconds(week.from),
-            $lte: fromEpochSeconds(week.to),
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { ...dateToStringOptions(timeZone), date: "$startedAt" },
-          },
-          duration: { $sum: "$durationSeconds" },
-          count: { $sum: 1 },
-        },
-      },
-    ])
-    .toArray();
-
-  // Pre-seed the 7 buckets so empty days render as zero rather than missing,
-  // keyed by the same date strings the aggregation produced.
-  const daysMap: Record<string, { duration: number; count: number }> = {};
-
-  const result: DailyMetric[] = week.dates.map((date, i) => {
-    daysMap[date] = { duration: 0, count: 0 };
-    return {
-      date,
-      dayLabel: week.dayLabels[i],
-      durationSeconds: 0,
-      sessionCount: 0,
-    };
-  });
-
-  for (const row of grouped) {
-    const bucket = daysMap[row._id];
-    if (bucket) {
-      bucket.duration += row.duration;
-      bucket.count += row.count;
-    }
-  }
-
-  return result.map((item) => ({
-    ...item,
-    durationSeconds: daysMap[item.date]?.duration || 0,
-    sessionCount: daysMap[item.date]?.count || 0,
-  }));
-}
-
-/**
  * Returns focus time grouped by subject, optionally scoped to a range.
  *
  * Callers that pass no range get all-time totals, which is correct for a
@@ -632,28 +496,30 @@ export async function getTopicAnalytics(
 }
 
 /**
- * Focus time per calendar day over a range, for the heatmap.
+ * Focus time per calendar day over a range, in the user's own zone.
  *
  * Deliberately SPARSE — one row per day that has focus time, and no row at all
- * for the rest. `getDailyAnalytics` pre-seeds all seven of its buckets because
- * seven is a number you can see; a year is 364 keys, and shipping 364 mostly
- * zero-valued objects across the RSC boundary to render a grid the client
- * already knows the shape of is the wrong trade. The grid looks days up in a Map
- * and paints a miss as the absent swatch, which is the same answer for free.
+ * for the rest. Both consumers want that: the heatmap looks days up in a Map and
+ * paints a miss as the absent swatch, which is the same answer for free, and
+ * `foldDaysIntoBars` starts from the range's axis and fills the gaps itself.
+ * Pre-seeding here would mean shipping a mostly-zero object per day across the
+ * RSC boundary — 7 for a week, which is harmless, and 364 for a heatmap or a
+ * multi-year all-time range, which is not.
  *
- * `timeZone` has to be the zone the caller derived the range with, for the same
- * reason it does in `getDailyAnalytics`: bounds and bucket keys from one zone,
- * or the minutes are dropped rather than shown on the wrong cell.
+ * `timeZone` has to be the zone the caller derived the range with, and this is
+ * the second half of that contract: bounds and bucket keys from one zone, or the
+ * minutes are dropped rather than shown on the wrong day. Passing the server's
+ * own zone here reintroduces exactly the bug `lib/timezone.ts` documents.
  *
  * Days with only zero-duration completed sessions are excluded by the
  * `durationSeconds` filter below, so "a day you did not focus" and "a day that
  * happens to appear in the index" stay the same thing.
  */
-export async function getHeatmapAnalytics(
+export async function getDailyFocus(
   userId: string,
   range: RangeFilter,
   timeZone: string = SERVER_TIME_ZONE
-): Promise<HeatmapMetric[]> {
+): Promise<DailyFocusMetric[]> {
   const grouped = await studySessions
     .aggregate<{ _id: string; duration: number; count: number }>([
       {
@@ -683,6 +549,15 @@ export async function getHeatmapAnalytics(
     sessionCount: row.count,
   }));
 }
+
+/**
+ * The heatmap's name for `getDailyFocus`, kept because the grid is the one
+ * consumer whose name says what it is for.
+ *
+ * It is a rename with no wrapper: the chart and the heatmap want the same rows
+ * and there is only one aggregation behind them.
+ */
+export const getHeatmapAnalytics = getDailyFocus;
 
 /**
  * Turns an optional epoch-second range into a `startedAt` clause.

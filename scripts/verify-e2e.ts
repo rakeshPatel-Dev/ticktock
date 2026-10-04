@@ -12,7 +12,7 @@ import {
 import {
   getActiveSession,
   getAllSubjects,
-  getDailyAnalytics,
+  getDailyFocus,
   getDashboardSummary,
   getHeatmapAnalytics,
   getSessionById,
@@ -253,13 +253,38 @@ async function runVerification() {
   const regexSafe = await getSessions(userId, { search: ".*" });
   check("Search escapes regex metacharacters", regexSafe.length === 0, regexSafe.length);
 
-  // 14. Daily analytics returns a full week
-  const daily = await getDailyAnalytics(userId, new Date());
-  check("Daily analytics returns 7 buckets", daily.length === 7);
+  // 14. The weekly range: seven buckets, Sunday first.
+  //
+  //     Asserted on the folded bars rather than on the query, because the bar
+  //     chart is what consumers actually see, and the two are deliberately
+  //     different shapes — the query is sparse (only days with sessions) and the
+  //     axis is dense. This is the case that proves the gap-fill exists: a user
+  //     who studied three days still gets a seven-bar row.
+  const weekSpec = resolveAnalyticsRange("week", new Date(), "UTC");
+  const weekDays = await getDailyFocus(
+    userId,
+    { from: weekSpec.from, to: weekSpec.to },
+    "UTC"
+  );
+  const weekBars = foldDaysIntoBars(weekDays, weekSpec.axis!, "day");
+  check("Weekly range returns 7 buckets", weekBars.length === 7, weekBars.length);
   check(
-    "Daily analytics bucket labels",
-    daily.map((d) => d.dayLabel).join(",") === "Sun,Mon,Tue,Wed,Thu,Fri,Sat",
-    daily.map((d) => d.dayLabel)
+    "Weekly range bucket labels",
+    weekBars.map((b) => b.label).join(",") === "Sun,Mon,Tue,Wed,Thu,Fri,Sat",
+    weekBars.map((b) => b.label)
+  );
+  check(
+    "Weekly range is dense even though the days are sparse",
+    weekDays.length <= 7 && weekBars.length === 7,
+    { days: weekDays.length, bars: weekBars.length }
+  );
+  check(
+    "Weekly bars carry the day's sessions, not just its duration",
+    weekBars.reduce((sum, b) => sum + b.sessionCount, 0) === weekDays.reduce(
+      (sum, d) => sum + d.sessionCount,
+      0
+    ),
+    weekBars.map((b) => b.sessionCount)
   );
 
   // 15. Get by id
@@ -367,8 +392,15 @@ async function runVerification() {
   const probeRef = new Date("2026-09-23T12:00:00Z");
   const bucketFor = async (timeZone: string, dayIndex: number) => {
     const range = getWeekRange(probeRef, timeZone);
-    const daily = await getDailyAnalytics(userId, probeRef, timeZone);
-    return daily.find((d) => d.date === range.dates[dayIndex]);
+    const days = await getDailyFocus(
+      userId,
+      { from: range.from, to: range.to },
+      timeZone
+    );
+    // Absent rather than zero, because the query only returns days with focus
+    // time. `undefined` and `0` are both "nothing here" to this caller, and the
+    // Kolkata assertion below relies on the distinction staying invisible.
+    return days.find((d) => d.date === range.dates[dayIndex]);
   };
 
   // The week runs Sun-Sat, so `probeRef` (Wed 2026-09-23) sits in the week that
@@ -387,8 +419,10 @@ async function runVerification() {
   const kolkataTuesday = await bucketFor("Asia/Kolkata", 2);
   check(
     "Kolkata files the same session on Tuesday, not Monday",
+    // `?? 0` rather than `=== 0`: the query is sparse, so the clean Monday is
+    // absent from the result entirely, not present with a zero.
     (kolkataTuesday?.durationSeconds ?? 0) >= 600 &&
-      kolkataMonday?.durationSeconds === 0,
+      (kolkataMonday?.durationSeconds ?? 0) === 0,
     { monday: kolkataMonday?.durationSeconds, tuesday: kolkataTuesday?.durationSeconds }
   );
 
@@ -483,10 +517,16 @@ async function runVerification() {
     weekSubjects.some((s) => s.subject === "Timezone Probe")
   );
   const weekTotal = weekSubjects.reduce((sum, s) => sum + s.durationSeconds, 0);
-  const weekChartTotal = (await getDailyAnalytics(userId, probeRef, "UTC")).reduce(
-    (sum, d) => sum + d.durationSeconds,
-    0
+  // Folded from the probe week, not reused from test 14 — that one folded the
+  // current week around `new Date()`, and the probe session lives in September.
+  // Reusing it here would have compared two different windows and called the
+  // mismatch a bug in the panels.
+  const probeWeekBars = foldDaysIntoBars(
+    await getDailyFocus(userId, weekRange, "UTC"),
+    resolveAnalyticsRange("week", probeRef, "UTC").axis!,
+    "day"
   );
+  const weekChartTotal = probeWeekBars.reduce((sum, b) => sum + b.durationSeconds, 0);
   check(
     "Subject panel total matches the weekly chart total",
     weekTotal === weekChartTotal,
@@ -880,12 +920,12 @@ async function runVerification() {
       const last = heatmap.columns[HEATMAP_WEEKS - 1];
       const future = last.filter((d) => d > heatmap.today);
       // Every day from tomorrow to the end of the current week, and no more.
+      // The week opens Sun 2026-09-20 and today is Wed 09-23, so four of the
+      // last column's cells are the past and three are the future.
       return (
         future.length > 0 &&
         future[0] === "2026-09-24" &&
         future[future.length - 1] === last[6] &&
-      // The week opens Sun 2026-09-20 and today is Wed 09-23, so four of the
-      // last column's cells are the past and three are the future.
         last.filter((d) => d <= heatmap.today).length === 4
       );
     })(),
@@ -1103,6 +1143,8 @@ async function runVerification() {
   const swPaused = pauseSegment(sw, 12_000);
   check(
     "Pause freezes the number no matter how long it stays paused",
+      // The week opens Sun 2026-09-20 and today is Wed 09-23, so four of the
+      // last column's cells are the past and three are the future.
     stopwatchElapsedMs(swPaused, 12_000) === 12_000 &&
       stopwatchElapsedMs(swPaused, 999_000) === 12_000,
     stopwatchElapsedMs(swPaused, 999_000)

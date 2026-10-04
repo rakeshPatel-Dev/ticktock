@@ -158,13 +158,22 @@ export function SummarySkeleton() {
   );
 }
 
-/** The analytics strip, the week chart's bars, and the two panels' rows. */
-export function AnalyticsSkeleton() {
+/**
+ * The analytics strip, the range chart's bars, and the two panels' rows.
+ *
+ * `rangeLabel` is passed in rather than hardcoded because the first stat is the
+ * window's own name: a fallback that said "This week" while the user waited on a
+ * year would state the wrong range in the exact place the page is about to
+ * confirm it. The bar count is deliberately left at a neutral seven — the real
+ * axis depends on data the server has not read yet, and a placeholder that
+ * guesses wrong is worse than one that says nothing.
+ */
+export function AnalyticsSkeleton({ rangeLabel }: { rangeLabel: string }) {
   return (
     <div className="space-y-4" role="status" aria-label="Loading analytics">
       <CardSkeleton>
         <StatsStripSkeleton
-          labels={["This week", "Sessions", "Avg session", "Longest day"]}
+          labels={[rangeLabel, "Sessions", "Avg session", "Longest day"]}
         />
       </CardSkeleton>
 
