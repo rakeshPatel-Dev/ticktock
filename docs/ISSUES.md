@@ -62,7 +62,7 @@ absent from the week-scoped one, and that the subject panel's duration total equ
 
 **Was:** [`lib/queries.ts`](file:///home/patel/Projects/ticktock/lib/queries.ts#L225)
 
-`$dateToString` without a `timezone` option formats in UTC while the Monday/Sunday bounds were
+`$dateToString` without a `timezone` option formats in UTC while the week bounds were
 computed in local time. A session at 11 PM local in a UTC+ zone was keyed as the next day — a key
 outside the range, so its minutes were dropped rather than shown on the wrong bar.
 
@@ -71,8 +71,8 @@ outside the range, so its minutes were dropped rather than shown on the wrong ba
 - The user's IANA zone is published by `components/timezone-sync.tsx` (rendered in the root layout)
   to the `ticktock_tz` cookie, and read back by `lib/session.ts#getUserTimeZone` with validation —
   a cookie is user-writable and an unvalidated value would throw inside `$dateToString`.
-- `getDailyAnalytics` passes `timezone` to `$dateToString` via `dateToStringOptions(tz)`, and builds
-  its seven bucket keys from the same `getWeekRange(reference, tz)` that produced the range bounds.
+- `getDailyFocus` passes `timezone` to `$dateToString` via `dateToStringOptions(tz)`. Its day keys
+  therefore always agree with the zone that produced the range bounds.
 - `getDashboardSummary` uses `getDayRange` for "today", so the dashboard's day boundary is the user's
   midnight rather than the server's.
 - `getDayRange` ends a day at the start of the next day, so DST days are 23/25 hours rather than a
@@ -334,11 +334,11 @@ all. A test that cannot reach the bug is not evidence the bug is gone.
 **File:** [`components/session-list.tsx#L56-L60`](file:///home/patel/Projects/ticktock/components/session-list.tsx#L56)
 
 The "This week" filter checks `sessionDate < oneWeekAgo` (a rolling 7-day window), but the
-analytics page defines "this week" as Mon–Sun. The two date ranges are inconsistent, creating
+analytics page defines "this week" as Sun–Sat. The two date ranges are inconsistent, creating
 a confusing discrepancy between the Sessions list and the Analytics weekly chart.
 
-**Suggested fix:** Use a calendar Mon–Sun boundary in `SessionListView` to match
-`getDailyAnalytics`.
+**Suggested fix:** Use a calendar Sun–Sat boundary in `SessionListView` to match the range
+`lib/analytics-range.ts` resolves for the week.
 
 ---
 

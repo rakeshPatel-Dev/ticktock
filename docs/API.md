@@ -344,19 +344,19 @@ Analytics should be calculated from the `sessions` table rather than stored sepa
 ### Server Function
 
 ```ts
-getDailyAnalytics(userId, targetDate?, timeZone?)
+getDailyFocus(userId, range?, timeZone?)
 ```
 
 ### Input
 
-The week (Monday–Sunday) containing `targetDate`, bucketed by calendar day **in `timeZone`**.
-
 ```ts
 {
-  targetDate: Date      // defaults to now
-  timeZone: string      // IANA zone; defaults to the server's own
+  range?: { from?: number; to?: number }   // epoch seconds; omit for all-time
+  timeZone?: string                        // IANA zone; defaults to the server's own
 }
 ```
+
+Rows are grouped by calendar day **in `timeZone`**.
 
 `timeZone` is not decoration. The range bounds and the `$dateToString` bucket keys must be produced
 with the same zone, or a session can be matched by the range and then filed under a key the range
@@ -369,21 +369,86 @@ user's zone from `lib/session.ts#getUserTimeZone`.
 [
   {
     date: "2026-09-15",
-    dayLabel: "Tue",
     durationSeconds: 16200,
     sessionCount: 3
   },
   {
     date: "2026-09-16",
-    dayLabel: "Wed",
     durationSeconds: 12600,
     sessionCount: 2
   }
 ]
 ```
 
-Used for the daily activity chart. Always seven buckets, Monday first, with empty days present as
-zeros.
+**Sparse**: only days with at least one completed, non-zero session. The dense, gapped axis is built
+separately — see below. Making the query dense would mean shipping a zero row for every day of an
+unbounded all-time range, which for a multi-year history is thousands of rows the chart cannot show.
+
+### `getHeatmapAnalytics`
+
+An alias of `getDailyFocus` (`export const getHeatmapAnalytics = getDailyFocus`). Same rows, same
+query; kept because the grid is the one caller whose name says what the data is for. Do not add a
+second aggregation behind it.
+
+---
+
+## Analytics Ranges
+
+`lib/analytics-range.ts`. Pure functions — no database, no session — so they are directly testable
+against fixed dates.
+
+### The four ranges
+
+| `range` | Bucket unit | Bar count | Axis source |
+| --- | --- | --- | --- |
+| `week` | day | 7 | Sunday → Saturday |
+| `month` | week | 4–6 | Sunday-aligned columns the month touches |
+| `year` | month | 12 | Jan → Dec |
+| `all` | month | history length | Derived from the data |
+
+Selection rides on `?range=week|month|year|all`. The default (`week`) renders at the bare
+`/analytics` URL, so the common case stays clean and shareable.
+
+### Functions
+
+```ts
+isAnalyticsRange(value: unknown): value is AnalyticsRange
+resolveAnalyticsRange(range, reference, timeZone): AnalyticsRangeSpec
+foldDaysIntoBars(days: DailyFocusDay[], axis: BarSpec[], unit: BucketUnit): Bar[]
+deriveMonthAxis(days: DailyFocusDay[], todayKey: string): BarSpec[]
+labelStride(count: number): number
+describeAxis(axis: BarSpec[], unit: BucketUnit): string
+```
+
+### `resolveAnalyticsRange`
+
+Returns `{ range, label, unit, from, to, axis }`, where `from`/`to` are epoch seconds.
+
+- `axis` is `null` **only** for `all`, because its axis depends on where the user's history starts
+  and the server cannot know that before querying. Callers pass `spec.axis ?? deriveMonthAxis(...)`.
+- `from` is `undefined` **only** for `all`. `startedAtInRange` reads `undefined` as unbounded, so the
+  filter must be spread (`{ from, to }`) rather than passed whole.
+- Month bounds are computed from the user's zone, so a month containing a DST transition is 743 hours
+  and not a flat 720.
+
+### `foldDaysIntoBars`
+
+Gap-fills. A bucket with no sessions becomes a real bar with `durationSeconds: 0`, because omitting it
+would shift every later bar left and make an empty month look like a busy one.
+
+Totals are summed off the folded bars, never off the raw days, so the tiles can never disagree with
+the chart directly beneath them.
+
+### `labelStride` and `describeAxis`
+
+`labelStride` is the starting guess, derived from bar count alone. The chart then measures the labels
+it actually rendered and widens the stride until they fit — see `fitLabelStride` in
+`components/analytics-view.tsx`. Count alone is not sufficient: twelve month labels of `Nov '25` fit
+a laptop and wrap on a phone.
+
+`describeAxis` derives the caption from the axis so it cannot contradict the bars beneath it. A
+single-bar axis returns that bar's own label rather than a degenerate `Oct 2026 – Oct 2026` — a real
+case, since an all-time view whose history fits inside one month is exactly what a new user sees.
 
 ---
 
@@ -802,7 +867,7 @@ updateSession()
 deleteSession()
 getSessions()
 getDashboardSummary()
-getDailyAnalytics()
+getDailyFocus()
 getSubjectAnalytics()
 getTopicAnalytics()
 ```

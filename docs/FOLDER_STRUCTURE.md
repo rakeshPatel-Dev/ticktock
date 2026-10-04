@@ -209,13 +209,17 @@ Examples:
 getActiveSession()
 getSessions()
 getDashboardSummary()
-getDailyAnalytics()
+getDailyFocus()
 getSubjectAnalytics()
 getTopicAnalytics()
 ```
 
 Analytics queries take an IANA `timeZone` (or a `RangeFilter`) so the range bounds and the bucket
 keys are derived from one call — see `lib/timezone.ts`.
+
+Range *shape* lives in `lib/analytics-range.ts`, which is deliberately free of both the database and
+the session: `resolveAnalyticsRange` turns a range into bounds and an axis, `foldDaysIntoBars` turns
+sparse days into dense bars, and both are testable against fixed dates with no fixture and no user.
 
 Subject reads fold case and whitespace server-side with the same aggregation expression, so the
 subject list, the analytics breakdown, and the subject filter cannot disagree — see
@@ -244,7 +248,7 @@ Calendar-day and week boundaries in a named IANA zone, using `Intl` only.
 
 ```text
 getDayRange()   // the user's "today", DST-correct
-getWeekRange()  // Mon-Sun, plus the seven bucket keys
+getWeekRange()  // Sun-Sat, plus the seven bucket keys
 formatDateInZone()
 dateToStringOptions()
 ```

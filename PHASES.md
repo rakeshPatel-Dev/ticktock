@@ -125,7 +125,7 @@ Implement backend server functions, Zod validation schemas, and timestamp arithm
 - [x] `getSessions(options)`: Fetches paginated/filtered sessions (by date range, subject, keyword), ordered newest first.
 - [x] `getSessionById(id)`: Fetches full details for a single session.
 - [x] `getDashboardSummary(targetDate)`: Aggregates total focused seconds, session count, distinct subjects, longest session, recent sessions, and active session.
-- [x] `getDailyAnalytics(range)`: Groups completed duration by day for charts.
+- [x] `getDailyFocus(range)`: Groups completed duration by sparse calendar day for charts.
 - [x] `getSubjectAnalytics(range)`: Groups total focus duration by subject.
 - [x] `getTopicAnalytics(range)`: Groups focus duration by topic under each subject.
 
@@ -216,7 +216,7 @@ Build the dedicated analytics screen (`app/analytics/page.tsx`) focused on actio
 
 ### 6.1 Weekly & Daily Aggregates
 - [x] Metric cards using shadcn `Card`: Total focused time this week, sessions completed, average session length, longest study day.
-- [x] Daily activity bar chart (visualizing focused time across Monday – Sunday).
+- [x] Daily activity bar chart (visualizing focused time across Sunday – Saturday).
 
 ### 6.2 Distribution & Subject Breakdown
 - [x] Time by subject breakdown (shadcn `Progress` bars / proportional horizontal bars with total hours and percentages).

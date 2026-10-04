@@ -252,7 +252,7 @@ except relevance score, and `getSessions` always orders by `startedAt`. So searc
 
 # Analytics
 
-`getSubjectAnalytics`, `getTopicAnalytics` and `getDailyAnalytics` aggregate server-side with
+`getSubjectAnalytics`, `getTopicAnalytics` and `getDailyFocus` aggregate server-side with
 `$group`. The previous implementation fetched a user's **entire** completed history into JS on
 every request — an unbounded memory read that was a latent outage at ~10k sessions per user,
 independent of which database backs the app.

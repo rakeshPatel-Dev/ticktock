@@ -101,29 +101,49 @@ Built with **Better Auth** (username plugin) on top of MongoDB.
 
 ## 7. Analytics (`/analytics`)
 
-The four headline metrics, the daily bar chart, and the subject/topic panels are scoped to the
-**current week (Mon–Sun)** in the user's timezone. The heatmap below is the one exception and
-carries its own range and its own header.
+A **range selector** (Week · Month · Year · All time) scopes the four headline metrics, the bar
+chart, and the subject/topic panels. Selection rides on `?range=`, so a view is linkable and the
+browser back button steps through ranges. The default week renders at the bare `/analytics` URL.
 
-- **Four headline metrics** — This Week total, Sessions, Average session, Longest day.
-- **Daily Activity bar chart** — Mon–Sun bars with hover tooltips (duration + session count).
+The heatmap below is the one exception: it always covers the **trailing 52 weeks** and carries its
+own header saying so, because reusing the selected range there would make two different datasets
+read as one.
+
+- **Four headline metrics** — range total, Sessions, Average session, Longest day.
+  - "Longest day" is a weekday in the week view (the seven bars beneath it are already labelled with
+    those) and a date in wider ranges, where "Wed" three months apart is three different days.
+- **Activity bar chart** — one bar per bucket, with hover tooltips (duration).
+  - **Week** → 7 daily bars, Sunday first, Sun–Sat.
+  - **Month** → 4–6 *Sunday-aligned week columns*, labelled by the first day of each column inside
+    the month. Weeks are never cut on the 1st: unequal slices make the chart incomparable.
+  - **Year** → 12 monthly bars, Jan–Dec.
+  - **All time** → one bar per month of history, gap-filled with real zero bars. The axis runs from
+    the user's first session to the current month.
+  - Bar gaps and corner radii step down with the bar count, so 60 bars stay bars rather than
+    slivers.
+  - Axis labels thin to fit what is actually on screen, measured after render — twelve `Nov '25`
+    labels fit a laptop and wrap on a phone.
+  - Empty buckets render as visible zero-height bars rather than being omitted, so an empty month
+    cannot shift the months after it left and read as a busy one.
 - **Focus Heatmap** — a calendar grid of focus time per day, one column per week, covering the
   **trailing 52 weeks** in the user's timezone.
   - Bucketed server-side into the user's own zone, so a session filed at Monday 20:00 UTC lands
-    on Monday in New York and Tuesday in Kolkata — the same rule the week chart uses.
+    on Monday in New York and Tuesday in Kolkata — the same rule the range chart uses.
   - **Fixed hour thresholds**, not quantiles of your own history: `none`, `<1h`, `1–2h`, `2–4h`,
     `4h+`. A single 14-hour day therefore cannot flatten an ordinary 3-hour day into the bottom
     bucket, and a 3-hour day means the same thing this month as last year.
   - Days after today render invisible rather than as an empty cell, so an ordinary Wednesday
     never reads as a day you failed.
-  - Month labels, Mon/Wed/Fri row labels, per-cell hover tooltips (duration + session count),
+  - Month labels, Sun/Tue/Thu row labels, per-cell hover tooltips (duration + session count),
     and a labelled intensity legend.
   - Horizontally scrollable on narrow screens, opening scrolled to the **most recent** week.
   - Descriptive only — no streak counter, no score, no rank, and no comparison against other
     users.
-- **Time by Subject** — proportional progress bars with a colour dot, duration, and percentage.
+- **Time by Subject** — proportional progress bars with duration and percentage, capped at 8 rows
+  with a "+N more" tail rather than an unbounded list.
 - **Time by Topic** — the top topics with their subject and total duration.
-- Thoughtful empty states ("Nothing tracked yet this week…").
+- Thoughtful empty states that name the range ("Nothing tracked yet", "Nothing tracked this week
+  yet").
 
 ---
 
@@ -187,8 +207,8 @@ Shortcuts are suppressed while typing in an input, textarea, select, or open lis
   partial index that enforces the one-active-session rule.
 - **Server Actions** for all writes (`createSession`, `finishSession`, `updateSession`,
   `deleteSession`, `clearAllSessions`).
-- **Server queries** for all reads (active session, history, subjects, dashboard summary, daily /
-  subject / topic analytics).
+- **Server queries** for all reads (active session, history, subjects, dashboard summary, sparse
+  daily focus, subject / topic analytics).
 - **Zod validation** on every client input, with friendly error messages.
 - **Subject identity** — stored trimmed/collapsed but compared case-insensitively so `Python` and
   `python` merge into one subject, list entry, colour, and analytics row.
@@ -197,9 +217,10 @@ Shortcuts are suppressed while typing in an input, textarea, select, or open lis
 
 ## 12. Reliability & Verification
 
-- **Query/timing verification script** — `npm run test:e2e -- --user <username>` runs ~120 assertions
+- **Query/timing verification script** — `npm run test:e2e -- --user <username>` runs ~150 assertions
   against a real account covering the concurrency rule, duration math, timezone bucketing, search
-  escaping, analytics scoping, the heatmap's range/grid/scale, and the pause/reload state machine.
+  escaping, the four analytics ranges (bounds, Sunday alignment, gap-filling, axis captions, a
+  DST-month boundary), the heatmap's range/grid/scale, and the pause/reload state machine.
 - **Streaming UI** — each page's data region sits behind its own `Suspense` boundary with skeleton
   fallbacks, so the shell paints immediately.
 - **Type checking and linting** — `npx tsc --noEmit`, `npm run lint`.
