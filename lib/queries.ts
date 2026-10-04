@@ -14,6 +14,10 @@ import {
   SERVER_TIME_ZONE,
 } from "@/lib/timezone";
 import { normalizeSubject, subjectKey } from "@/lib/subjects";
+import type { DailyFocusDay } from "@/lib/analytics-range";
+
+/** One sparse day of focus time. Re-exported so consumers need not import both. */
+export type DailyFocusMetric = DailyFocusDay;
 
 /** Epoch-second bounds. Absent fields mean "unbounded on that side". */
 export interface RangeFilter {
@@ -359,6 +363,56 @@ export async function getDashboardSummary(
     recentSessions: recentDocs.map(toStudySession),
     activeSession,
   };
+}
+
+/**
+ * Focus time grouped by calendar day, **sparse**.
+ *
+ * Only days with at least one completed, non-zero session come back. The dense,
+ * gapped axis is built on top of these rows by `foldDaysIntoBars`, so the range
+ * can be a week, a month, a year, or unbounded without the query having to know
+ * which — a dense query would have to ship a zero row for every day of an
+ * all-time range, which for a multi-year history is thousands of rows the chart
+ * cannot show.
+ *
+ * `range` bounds and the `$dateToString` bucket keys are produced with the same
+ * `timeZone`, or a session can be matched by the range and then filed under a key
+ * the range never contained — which drops the minutes instead of showing them on
+ * the wrong bar.
+ */
+export async function getDailyFocus(
+  userId: string,
+  range: RangeFilter,
+  timeZone: string = SERVER_TIME_ZONE
+): Promise<DailyFocusMetric[]> {
+  const grouped = await studySessions
+    .aggregate<{ _id: string; duration: number; count: number }>([
+      {
+        $match: {
+          userId,
+          status: "completed",
+          durationSeconds: { $gt: 0 },
+          ...startedAtInRange(range),
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { ...dateToStringOptions(timeZone), date: "$startedAt" },
+          },
+          duration: { $sum: "$durationSeconds" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ])
+    .toArray();
+
+  return grouped.map((row) => ({
+    date: row._id,
+    durationSeconds: row.duration,
+    sessionCount: row.count,
+  }));
 }
 
 /**

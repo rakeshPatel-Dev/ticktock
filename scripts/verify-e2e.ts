@@ -20,7 +20,15 @@ import {
   getSubjectAnalytics,
   getTopicAnalytics,
 } from "../lib/queries";
-import { formatDateInZone, getDayRange, getHeatmapRange, getWeekRange } from "../lib/timezone";
+import { formatDateInZone, getCalendarRange, getDayRange, getHeatmapRange, getWeekRange } from "../lib/timezone";
+import {
+  describeAxis,
+  deriveMonthAxis,
+  foldDaysIntoBars,
+  isAnalyticsRange,
+  labelStride,
+  resolveAnalyticsRange,
+} from "../lib/analytics-range";
 import { getHeatmapLevel, HEATMAP_LEVELS, HEATMAP_WEEKS } from "../lib/heatmap";
 import { canSkipReconcile } from "../lib/timer-store";
 import {
@@ -515,6 +523,179 @@ async function runVerification() {
     { firstRead, secondRead }
   );
   await studySessions.deleteMany({ _id: { $in: tieIds } });
+
+  // 21b. The four analytics ranges. These are pure functions, so they are
+  //      checked against fixed dates rather than live data — a range that is
+  //      right for September must still be right in February, and a test that
+  //      reads `new Date()` cannot tell the difference.
+  //
+  //      September 2026 is the awkward month on purpose: it opens on a Tuesday and
+  //      closes on a Wednesday, so the Sunday-aligned week buckets run 5 and 6
+  //      deep in different months. A naive `ceil(days / 7)` would be right by luck.
+  const calRef = new Date("2026-09-23T12:00:00Z");
+  const weekSpecB = resolveAnalyticsRange("week", calRef, "UTC");
+  check(
+    "Week range spans exactly 7 days, Sunday to Saturday",
+    weekSpecB.axis!.length === 7 &&
+      weekSpecB.axis![0].key === "2026-09-20" &&
+      weekSpecB.axis![6].key === "2026-09-26" &&
+      weekSpecB.unit === "day",
+    weekSpecB.axis?.map((b) => b.key)
+  );
+
+  const monthSpec = resolveAnalyticsRange("month", calRef, "UTC");
+  check(
+    "Month range is Sunday-aligned week buckets, not 30 daily bars",
+    monthSpec.unit === "week" && monthSpec.axis!.length >= 4 && monthSpec.axis!.length <= 6,
+    monthSpec.axis?.map((b) => b.key)
+  );
+  check(
+    "Every month bucket starts on a Sunday and ends on a Saturday",
+    monthSpec.axis!.every(
+      (b, i, all) =>
+        new Date(`${b.key}T00:00:00Z`).getUTCDay() === 0 &&
+        (i === all.length - 1 ||
+          new Date(`${all[i + 1].key}T00:00:00Z`).getTime() -
+            new Date(`${b.key}T00:00:00Z`).getTime() ===
+            7 * 86400000)
+    ),
+    monthSpec.axis?.map((b) => b.key)
+  );
+  // The outer columns hang over the month boundary on purpose: September 2026
+  // opens on a Tuesday, so its first week starts Aug 30 and its last week starts
+  // Sep 27. Exact keys, because "covers the month" is otherwise satisfied by an
+  // axis that stops on the 3rd.
+  check(
+    "The month's columns reach both edges, spilling over the boundary",
+    monthSpec.axis![0].key === "2026-08-30" &&
+      monthSpec.axis!.at(-1)!.key === "2026-09-27",
+    { first: monthSpec.axis![0].key, last: monthSpec.axis!.at(-1)?.key }
+  );
+  check(
+    "The month's columns are labelled by their first in-month day",
+    monthSpec.axis!.map((b) => b.label).join(",") === "Sep 1,Sep 6,Sep 13,Sep 20,Sep 27",
+    monthSpec.axis!.map((b) => b.label)
+  );
+
+  const yearSpec = resolveAnalyticsRange("year", calRef, "UTC");
+  check(
+    "Year range is 12 months, Jan to Dec of the current year",
+    yearSpec.unit === "month" &&
+      yearSpec.axis!.length === 12 &&
+      yearSpec.axis![0].key === "2026-01" &&
+      yearSpec.axis![11].key === "2026-12",
+    yearSpec.axis?.map((b) => b.key)
+  );
+
+  const allSpec = resolveAnalyticsRange("all", calRef, "UTC");
+  check(
+    "All-time is unbounded below and ends at today",
+    allSpec.from === undefined && allSpec.axis === null && allSpec.unit === "month",
+    { from: allSpec.from, axis: allSpec.axis, unit: allSpec.unit }
+  );
+  check(
+    "All-time's upper bound is the end of the reference day in the user's zone",
+    allSpec.to !== undefined &&
+      formatDateInZone(new Date((allSpec.to as number) * 1000), "UTC") === "2026-09-23",
+    allSpec.to
+  );
+
+  // The axis all-time cannot know until it has read the history.
+  const allDays = [
+    { date: "2025-11-03", durationSeconds: 1200, sessionCount: 2 },
+    { date: "2026-01-14", durationSeconds: 600, sessionCount: 1 },
+    { date: "2026-09-20", durationSeconds: 3000, sessionCount: 3 },
+  ];
+  const allAxis = deriveMonthAxis(allDays, "2026-09-23");
+  // Sliced from the all-time axis, not the month one: `describeAxis` only reaches
+  // its month branch for bars that *are* months (year and all-time), where the
+  // bar's key and its label agree on the month. Slicing a month range instead
+  // would pair a `"month"` unit with week columns and test a combination the
+  // resolver can never produce.
+  check(
+    "A single-bar axis is captioned as itself, not as a degenerate range",
+    describeAxis(allAxis.slice(0, 1), "month") === "Nov 2025" &&
+      describeAxis(weekSpecB.axis!.slice(0, 1), "day") === "Sun" &&
+      describeAxis([], "month") === "",
+    {
+      month: describeAxis(allAxis.slice(0, 1), "month"),
+      day: describeAxis(weekSpecB.axis!.slice(0, 1), "day"),
+    }
+  );
+  check(
+    "All-time axis runs from the first day of data to the current month",
+    allAxis.length === 11 &&
+      allAxis[0].key === "2025-11" &&
+      allAxis.at(-1)!.key === "2026-09",
+    allAxis.map((b) => b.key)
+  );
+  const allBars = foldDaysIntoBars(allDays, allAxis, "month");
+  check(
+    "All-time folds days into their own month, totals preserved",
+    allBars.reduce((sum, b) => sum + b.durationSeconds, 0) === 4800 &&
+      allBars.find((b) => b.key === "2025-11")?.durationSeconds === 1200 &&
+      allBars.find((b) => b.key === "2026-09")?.durationSeconds === 3000,
+    allBars.map((b) => `${b.key}:${b.durationSeconds}`)
+  );
+  check(
+    "All-time gap-fills months with no sessions as real zero bars",
+    // Not omitted. A month bar that vanished would shift every later bar left and
+    // make August look like a busy month.
+    allBars.length === 11 &&
+      allBars.find((b) => b.key === "2025-12")?.durationSeconds === 0 &&
+      allBars.find((b) => b.key === "2026-02")?.durationSeconds === 0,
+    allBars.map((b) => `${b.key}:${b.durationSeconds}`)
+  );
+
+  // The label stride is what keeps a 12- or 60-bar axis from printing 60 dates
+  // into 600px. It must thin down as the bar count rises and never print a
+  // label off the end.
+  check(
+    "Axis labels thin with bar count and never overflow",
+    labelStride(7) === 1 &&
+      labelStride(12) >= 1 &&
+      labelStride(60) > labelStride(12) &&
+      labelStride(60) * 11 < 60,
+    { s7: labelStride(7), s12: labelStride(12), s60: labelStride(60) }
+  );
+
+  // A bad search param must land on the default rather than render a page whose
+  // numbers come from an axis nobody validated.
+  check(
+    "Unknown and non-string ranges fall back to the default",
+    isAnalyticsRange("week") &&
+      isAnalyticsRange("all") &&
+      !isAnalyticsRange("century") &&
+      !isAnalyticsRange(undefined) &&
+      !isAnalyticsRange(["week"]),
+    "isAnalyticsRange"
+  );
+
+  check(
+    "Axis captions name the window for each unit",
+    // Day captions the weekdays, week captions the days it spans, month captions
+    // the months, and anything longer captions its endpoints in full — a caption
+    // is the only thing telling a 60-bar axis which three years it covers.
+    describeAxis(weekSpecB.axis!, "day") === "Sun – Sat" &&
+      describeAxis(monthSpec.axis!, "week") === "Sep 1 – Sep 27" &&
+      describeAxis(yearSpec.axis!, "month") === "Jan – Dec" &&
+      describeAxis(allAxis, "month") === "Nov 2025 – Sep 2026",
+    {
+      day: describeAxis(weekSpecB.axis!, "day"),
+      week: describeAxis(monthSpec.axis!, "week"),
+      month: describeAxis(yearSpec.axis!, "month"),
+      all: describeAxis(allAxis, "month"),
+    }
+  );
+
+  // A DST transition inside a month bucket must not shorten it. March 2026 in
+  // New York is 743 hours, not 720.
+  const dstMonth = getCalendarRange(new Date("2026-03-15T12:00:00Z"), "America/New_York", "month");
+  check(
+    "Month bounds survive a spring-forward transition",
+    dstMonth.to! - dstMonth.from! + 1 === 743 * 3600,
+    { hours: (dstMonth.to! - dstMonth.from! + 1) / 3600 }
+  );
 
   // 22. Subject identity. "Python", "python" and "  pYtHoN  " are ONE subject:
   //     one entry in the list, one analytics row carrying the summed time, and
