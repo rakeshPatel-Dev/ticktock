@@ -18,11 +18,11 @@ const MONTH_LABELS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-/** Weekday initials for the row labels, Monday first — matches the column order. */
-const ROW_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
+/** Weekday initials for the row labels, Sunday first — matches the column order. */
+const ROW_LABELS = ["Sun", "", "Tue", "", "Thu", "", "Sat"];
 
 interface HeatmapViewProps {
-  /** Week columns, oldest first, each seven `YYYY-MM-DD` keys Monday first. */
+  /** Week columns, oldest first, each seven `YYYY-MM-DD` keys Sunday first. */
   columns: string[][];
   metrics: HeatmapMetric[];
   /** The user's current `YYYY-MM-DD`. Anything later has not happened yet. */

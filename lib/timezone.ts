@@ -5,7 +5,7 @@
  * property of a *place*, not of the server. Two bugs lived here:
  *
  *   1. `$dateToString` without a `timezone` option formats in UTC, while the
- *      Monday/Sunday range bounds were computed with the server's local
+ *      week range bounds were computed with the server's local
  *      `Date`. On Vercel that is UTC for the bounds and UTC for the buckets, so
  *      a 9 PM session in Asia/Kolkata landed in the *next* bucket — a day the
  *      range bounds had already excluded, so the time vanished.
@@ -23,8 +23,17 @@
  * the rest of the domain layer uses for timestamps.
  */
 
-/** Days in a chart row, Monday first. */
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+/**
+ * Weekday initials, Sunday first — the order `getUTCDay` already uses, which is
+ * why nothing here has to shift anything.
+ *
+ * Exported because "name this day" comes up outside the week chart too: the
+ * analytics tiles label their best day with the same seven words, so that a tile
+ * reading "Wed" points at the Wednesday bar directly above it.
+ */
+export const WEEKDAY_LABELS = [
+  "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+] as const;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -198,14 +207,14 @@ export function getDayRange(
 }
 
 export interface WeekRange extends DayRange {
-  /** The seven `YYYY-MM-DD` keys the buckets are keyed by, Monday first. */
+  /** The seven `YYYY-MM-DD` keys the buckets are keyed by, Sunday first. */
   dates: string[];
-  /** Matching labels, Monday first. */
+  /** Matching labels, Sunday first. */
   dayLabels: string[];
 }
 
 /**
- * The Monday–Sunday week containing `reference` in `timeZone`, as epoch-second
+ * The Sunday–Saturday week containing `reference` in `timeZone`, as epoch-second
  * bounds plus the bucket keys to match against.
  *
  * The returned `dates` MUST be the keys used to fold the aggregation: a
@@ -220,21 +229,21 @@ export function getWeekRange(
   const { date } = getWallClock(reference, timeZone);
 
   // Weekday of the wall-clock date. getUTCDay() on a UTC-midnight date is the
-  // weekday the user sees, with no offset arithmetic involved.
-  const weekday = wallCalendarDate(date).getUTCDay();
-  const daysSinceMonday = (weekday + 6) % 7;
+  // weekday the user sees, with no offset arithmetic involved — and it is already
+  // Sunday-first (0 = Sunday), which is where the week starts.
+  const daysSinceSunday = wallCalendarDate(date).getUTCDay();
 
-  const mondayKey = shiftDateKey(date, -daysSinceMonday);
-  const nextMondayKey = shiftDateKey(mondayKey, 7);
+  const sundayKey = shiftDateKey(date, -daysSinceSunday);
+  const nextSundayKey = shiftDateKey(sundayKey, 7);
 
-  const fromMs = zonedMidnightUtcMs(mondayKey, timeZone);
-  const toMs = zonedMidnightUtcMs(nextMondayKey, timeZone);
+  const fromMs = zonedMidnightUtcMs(sundayKey, timeZone);
+  const toMs = zonedMidnightUtcMs(nextSundayKey, timeZone);
 
   return {
     from: Math.floor(fromMs / 1000),
     to: Math.floor(toMs / 1000) - 1,
-    dates: Array.from({ length: 7 }, (_, i) => shiftDateKey(mondayKey, i)),
-    dayLabels: [...DAY_LABELS],
+    dates: Array.from({ length: 7 }, (_, i) => shiftDateKey(sundayKey, i)),
+    dayLabels: [...WEEKDAY_LABELS],
   };
 }
 
@@ -246,7 +255,7 @@ function zonedMidnightUtcMs(dateKey: string, timeZone: string): number {
 
 export interface HeatmapRange extends DayRange {
   /**
-   * Week columns, oldest first. Each is seven `YYYY-MM-DD` keys, Monday first.
+   * Week columns, oldest first. Each is seven `YYYY-MM-DD` keys, Sunday first.
    *
    * Returned as a grid rather than a flat list of days because the cell order IS
    * the layout: column-major would need a transpose, and rows-first would draw
@@ -258,10 +267,10 @@ export interface HeatmapRange extends DayRange {
 }
 
 /**
- * The Monday-aligned window a calendar heatmap draws, in `timeZone`.
+ * The Sunday-aligned window a calendar heatmap draws, in `timeZone`.
  *
- * Aligned to Mondays for the same reason `getWeekRange` is: a heatmap column is
- * a week, so the leftmost column has to be a whole Mon–Sun or every row after
+ * Aligned to Sundays for the same reason `getWeekRange` is: a heatmap column is
+ * a week, so the leftmost column has to be a whole Sun–Sat or every row after
  * the first is offset by a different number of days and the grid shears.
  *
  * `to` is the end of *today*, not the end of the current week. The trailing days
@@ -280,18 +289,18 @@ export function getHeatmapRange(
 ): HeatmapRange {
   const { date } = getWallClock(reference, timeZone);
 
-  // Same Monday-first walk as `getWeekRange`, then step back whole weeks so the
-  // oldest column is a Monday too.
-  const daysSinceMonday = (wallCalendarDate(date).getUTCDay() + 6) % 7;
-  const thisMonday = shiftDateKey(date, -daysSinceMonday);
-  const firstMonday = shiftDateKey(thisMonday, -7 * (weeks - 1));
+  // Same Sunday-first walk as `getWeekRange`, then step back whole weeks so the
+  // oldest column is a Sunday too.
+  const daysSinceSunday = wallCalendarDate(date).getUTCDay();
+  const thisSunday = shiftDateKey(date, -daysSinceSunday);
+  const firstSunday = shiftDateKey(thisSunday, -7 * (weeks - 1));
 
   return {
-    from: Math.floor(zonedMidnightUtcMs(firstMonday, timeZone) / 1000),
+    from: Math.floor(zonedMidnightUtcMs(firstSunday, timeZone) / 1000),
     to: getDayRange(reference, timeZone).to,
     today: date,
     columns: Array.from({ length: weeks }, (_, w) =>
-      Array.from({ length: 7 }, (_, d) => shiftDateKey(firstMonday, w * 7 + d))
+      Array.from({ length: 7 }, (_, d) => shiftDateKey(firstSunday, w * 7 + d))
     ),
   };
 }

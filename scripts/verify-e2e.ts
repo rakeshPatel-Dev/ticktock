@@ -250,7 +250,7 @@ async function runVerification() {
   check("Daily analytics returns 7 buckets", daily.length === 7);
   check(
     "Daily analytics bucket labels",
-    daily.map((d) => d.dayLabel).join(",") === "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+    daily.map((d) => d.dayLabel).join(",") === "Sun,Mon,Tue,Wed,Thu,Fri,Sat",
     daily.map((d) => d.dayLabel)
   );
 
@@ -334,7 +334,7 @@ async function runVerification() {
 
   // 19. Timezone-correct day bucketing. The instant below is Monday 20:00 UTC,
   //     Monday 16:00 in New York, and TUESDAY 01:30 in Kolkata — three
-  //     different days for the same session, all inside the same Mon-Sun week.
+  //     different days for the same session, all inside the same Sun-Sat week.
   //     Bucketing by UTC while the bounds were local is what made the minutes
   //     land on the wrong bar, or fall outside the range and vanish.
   const zonedInstant = Math.floor(
@@ -363,18 +363,20 @@ async function runVerification() {
     return daily.find((d) => d.date === range.dates[dayIndex]);
   };
 
-  const utcMonday = await bucketFor("UTC", 0);
+  // The week runs Sun-Sat, so `probeRef` (Wed 2026-09-23) sits in the week that
+  // opens Sunday 2026-09-20: index 1 is Monday 09-21, index 2 is Tuesday 09-22.
+  const utcMonday = await bucketFor("UTC", 1);
   check("UTC files the probe session on Monday", (utcMonday?.durationSeconds ?? 0) >= 600, utcMonday);
 
-  const nyMonday = await bucketFor("America/New_York", 0);
+  const nyMonday = await bucketFor("America/New_York", 1);
   check(
     "New York files the same session on Monday",
     (nyMonday?.durationSeconds ?? 0) >= 600,
     nyMonday
   );
 
-  const kolkataMonday = await bucketFor("Asia/Kolkata", 0);
-  const kolkataTuesday = await bucketFor("Asia/Kolkata", 1);
+  const kolkataMonday = await bucketFor("Asia/Kolkata", 1);
+  const kolkataTuesday = await bucketFor("Asia/Kolkata", 2);
   check(
     "Kolkata files the same session on Tuesday, not Monday",
     (kolkataTuesday?.durationSeconds ?? 0) >= 600 &&
@@ -384,8 +386,8 @@ async function runVerification() {
 
   const kolkataWeek = getWeekRange(probeRef, "Asia/Kolkata");
   check(
-    "Weekly range is Mon-Sun in the user's zone",
-    kolkataWeek.dates[0] === "2026-09-21" && kolkataWeek.dates[6] === "2026-09-27",
+    "Weekly range is Sun-Sat in the user's zone",
+    kolkataWeek.dates[0] === "2026-09-20" && kolkataWeek.dates[6] === "2026-09-26",
     kolkataWeek.dates
   );
   check(
@@ -398,7 +400,7 @@ async function runVerification() {
     )
   );
   check(
-    "Every zone's Monday bucket key matches its range start",
+    "Every zone's Sunday bucket key matches its range start",
     ["UTC", "America/New_York", "Asia/Kolkata", "Australia/Lord_Howe", "Pacific/Chatham"].every(
       (tz) => {
         const w = getWeekRange(probeRef, tz);
@@ -652,8 +654,8 @@ async function runVerification() {
     { columns: heatmap.columns.length }
   );
   check(
-    "Every heatmap column starts on a Monday",
-    heatmap.columns.every((w) => new Date(`${w[0]}T00:00:00Z`).getUTCDay() === 1),
+    "Every heatmap column starts on a Sunday",
+    heatmap.columns.every((w) => new Date(`${w[0]}T00:00:00Z`).getUTCDay() === 0),
     heatmap.columns[0][0]
   );
   check(
@@ -671,7 +673,7 @@ async function runVerification() {
     "A year of heatmap columns has no duplicated or skipped days",
     new Set(flatDays).size === HEATMAP_WEEKS * 7
   );
-  // The last column is a whole Mon-Sun week, so it extends past `today`. Those
+  // The last column is a whole Sun-Sat week, so it extends past `today`. Those
   // trailing cells are what the component paints invisible, and the range `to`
   // is what stops a forward-dated session from landing in one of them.
   check(
@@ -701,7 +703,9 @@ async function runVerification() {
         future.length > 0 &&
         future[0] === "2026-09-24" &&
         future[future.length - 1] === last[6] &&
-        last.filter((d) => d <= heatmap.today).length === 3
+      // The week opens Sun 2026-09-20 and today is Wed 09-23, so four of the
+      // last column's cells are the past and three are the future.
+        last.filter((d) => d <= heatmap.today).length === 4
       );
     })(),
     heatmap.columns[HEATMAP_WEEKS - 1]
