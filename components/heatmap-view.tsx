@@ -195,10 +195,21 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
             */}
             <div className="w-fit mx-auto">
               {/* Month labels. Same track count and size as the grid below, so a
-                  label always sits over the week it names. */}
+                  label always sits over the week it names.
+
+                  `overflow-hidden` is load-bearing rather than tidiness. A label
+                  is `whitespace-nowrap` text that is wider than the ~13px track
+                  it sits in, and a grid item will not shrink below its
+                  min-content width — so it overflowed its track and, at the end
+                  of the row, past the grid itself. Ink overflow feeds the
+                  scrollable area of the ancestor, which gave the scroller 4px of
+                  phantom overflow on every desktop width: a horizontal
+                  scrollbar over a grid that fit, plus the snap-to-end pass
+                  shoving the whole grid 4px off its right edge. Clipping here
+                  keeps that inside the label row, where it belongs. */}
               <div
                 aria-hidden
-                className="grid grid-rows-1 gap-1 mb-2 h-4"
+                className="grid grid-rows-1 gap-1 mb-2 h-4 overflow-hidden"
                 style={{
                   gridTemplateColumns: `repeat(${columns.length}, minmax(12px, 1fr))`,
                 }}
@@ -206,7 +217,14 @@ export function HeatmapView({ columns, metrics, today, weeks }: HeatmapViewProps
                 {monthLabels.map((label, i) => (
                   <span
                     key={i}
-                    className="text-[10px] font-medium text-muted-foreground/80 whitespace-nowrap"
+                    className={cn(
+                      "min-w-0 text-[10px] font-medium text-muted-foreground/80 whitespace-nowrap",
+                      // The final column has no column after it to run into, so a
+                      // label starting there would be clipped mid-word. Anchoring
+                      // it to the end of its track sends the text back into the
+                      // empty weeks before it instead of past the edge.
+                      i === columns.length - 1 && "justify-self-end"
+                    )}
                   >
                     {label}
                   </span>
